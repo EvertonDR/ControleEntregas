@@ -1,11 +1,16 @@
 package com.example.controleentregas.data
 
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
 @Dao
 interface BairroDao {
 
     @Insert
-    fun inserir(bairro: BairroEntity)
+    suspend fun inserir(bairro: BairroEntity)
 
-    @Query("SELECT * FROM bairros")
-    fun listar(): List<BairroEntity>
+    @Query("SELECT * FROM bairros ORDER BY nome ASC")
+    fun listar(): Flow<List<BairroEntity>>
 }

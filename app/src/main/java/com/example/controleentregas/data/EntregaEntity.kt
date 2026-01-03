@@ -1,5 +1,9 @@
 package com.example.controleentregas.data
 
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.PrimaryKey
+
 @Entity(
     tableName = "entregas",
     foreignKeys = [
@@ -10,7 +14,7 @@ package com.example.controleentregas.data
         ),
         ForeignKey(
             entity = BairroEntity::class,
-            parentColumns = ["id"]
+            parentColumns = ["id"],
             childColumns = ["bairroId"]
         )
     ]

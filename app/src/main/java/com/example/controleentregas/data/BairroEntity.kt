@@ -1,6 +1,9 @@
 package com.example.controleentregas.data
 
-@Entity(tableName "bairros")
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "bairros")
 data class BairroEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
