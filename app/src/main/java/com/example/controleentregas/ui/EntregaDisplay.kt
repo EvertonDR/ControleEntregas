@@ -6,6 +6,7 @@ data class EntregaDisplay(
     val id: Int,
     val clienteNome: String,
     val bairroNome: String,
+    val cidade: String,
     val valor: Double,
     val data: String,
     val pago: Boolean,

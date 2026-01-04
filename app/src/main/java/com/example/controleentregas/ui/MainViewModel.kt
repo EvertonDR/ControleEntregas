@@ -34,6 +34,7 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
                     id = entrega.id,
                     clienteNome = clientesMap[entrega.clienteId]?.nome ?: "Desconhecido",
                     bairroNome = bairrosMap[entrega.bairroId]?.nome ?: "Desconhecido",
+                    cidade = entrega.cidade,
                     valor = entrega.valor,
                     data = entrega.data,
                     pago = entrega.pago,
@@ -77,15 +78,34 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
                 started = SharingStarted.WhileSubscribed(5_000L),
                 initialValue = PagasUiState()
             )
+    
+    val naoPagasUiState: StateFlow<NaoPagasUiState> = 
+        getEntregasDisplayFlow(entregasRepository.getEntregasNaoPagas())
+            .map { entregasDisplay ->
+                val entregasAgrupadas = entregasDisplay.groupBy { it.clienteNome }
+                NaoPagasUiState(entregasNaoPagasPorCliente = entregasAgrupadas)
+            }.stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000L),
+                initialValue = NaoPagasUiState()
+            )
 
     val realizadasUiState: StateFlow<RealizadasUiState> = 
         getEntregasDisplayFlow(entregasRepository.getEntregasRealizadas())
             .map { entregasDisplay ->
                 val entregasPorCliente = entregasDisplay.groupBy { it.clienteNome }
                 val resumoClientes = entregasPorCliente.mapValues { (_, entregas) ->
-                    val totalNaoPago = entregas.count { !it.pago }
-                    val valorNaoPago = entregas.filter { !it.pago }.sumOf { it.valor }
-                    ClienteResumo(totalNaoPago, valorNaoPago)
+                    val totalRealizadas = entregas.size
+                    val entregasPagas = entregas.filter { it.pago }
+                    val entregasNaoPagas = entregas.filter { !it.pago }
+                    
+                    ClienteResumo(
+                        totalEntregasRealizadas = totalRealizadas,
+                        totalEntregasPagas = entregasPagas.size,
+                        totalEntregasNaoPagas = entregasNaoPagas.size,
+                        valorTotalPago = entregasPagas.sumOf { it.valor },
+                        valorTotalNaoPago = entregasNaoPagas.sumOf { it.valor }
+                    )
                 }
                 RealizadasUiState(entregasPorCliente, resumoClientes)
             }.stateIn(
@@ -94,15 +114,29 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
                 initialValue = RealizadasUiState()
             )
 
-    fun marcarComoPaga(entrega: EntregaEntity) {
+    val clientes: StateFlow<List<ClienteEntity>> = entregasRepository.getClientes()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000L),
+            initialValue = emptyList()
+        )
+
+    val bairros: StateFlow<List<BairroEntity>> = entregasRepository.getBairros()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000L),
+            initialValue = emptyList()
+        )
+
+    fun togglePagoStatus(entrega: EntregaEntity) {
         viewModelScope.launch {
-            entregasRepository.updateEntrega(entrega.copy(pago = true))
+            entregasRepository.updateEntrega(entrega.copy(pago = !entrega.pago))
         }
     }
     
-    fun marcarComoRealizada(entrega: EntregaEntity) {
+    fun toggleRealizadaStatus(entrega: EntregaEntity) {
         viewModelScope.launch {
-            entregasRepository.updateEntrega(entrega.copy(realizada = true))
+            entregasRepository.updateEntrega(entrega.copy(realizada = !entrega.realizada))
         }
     }
 
@@ -119,26 +153,27 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
         _filtroData.value = null
     }
 
-    fun exportarPdf(context: Context) {
-        viewModelScope.launch {
-            // TODO: Ajustar exportação de PDF para usar EntregaDisplay
-//            val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-//            val nomeArquivo = "RelatorioEntregas_${sdf.format(Date())}"
-//            val entregasAtuais = mainUiState.value.entregas
-//            PdfExporter.export(context, entregasAtuais, nomeArquivo)
-        }
-    }
-
     fun exportarResumoCliente(context: Context, clienteNome: String) {
-        realizadasUiState.value.resumoPorCliente[clienteNome]?.let { resumo ->
-            val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
-            val nomeArquivo = "Resumo_${clienteNome}_${sdf.format(Date())}"
-            // TODO: Criar ou ajustar um método em PdfExporter para este resumo
-            // PdfExporter.exportResumo(context, clienteNome, resumo, nomeArquivo)
+        viewModelScope.launch {
+            realizadasUiState.value.resumoPorCliente[clienteNome]?.let { resumo ->
+                val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                val nomeArquivo = "Resumo_${clienteNome}_${sdf.format(Date())}"
+                PdfExporter.exportarResumoCliente(context, clienteNome, resumo, nomeArquivo)
+            }
         }
     }
 
-    fun inserirEntrega(clienteId: Int, bairroId: Int, valor: Double, data: String) {
+    fun exportarNaoPagasCliente(context: Context, clienteNome: String) {
+        viewModelScope.launch {
+            naoPagasUiState.value.entregasNaoPagasPorCliente[clienteNome]?.let { entregas ->
+                val sdf = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
+                val nomeArquivo = "Cobranca_${clienteNome}_${sdf.format(Date())}"
+                PdfExporter.exportarNaoPagasCliente(context, clienteNome, entregas, nomeArquivo)
+            }
+        }
+    }
+
+    fun inserirEntrega(clienteId: Int, bairroId: Int, valor: Double, data: String, cidade: String) {
         viewModelScope.launch {
             val novaEntrega = EntregaEntity(
                 clienteId = clienteId,
@@ -146,7 +181,8 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
                 valor = valor,
                 data = data,
                 pago = false,
-                realizada = false
+                realizada = false,
+                cidade = cidade
             )
             entregasRepository.insertEntrega(novaEntrega)
         }
@@ -159,9 +195,9 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
         }
     }
 
-    fun inserirBairro(nome: String, valor: Double) {
+    fun inserirBairro(nome: String, valor: Double, cidade: String) {
         viewModelScope.launch {
-            val novoBairro = BairroEntity(nome = nome, valorEntrega = valor)
+            val novoBairro = BairroEntity(nome = nome, valorEntrega = valor, cidade = cidade)
             entregasRepository.insertBairro(novoBairro)
         }
     }
@@ -176,12 +212,19 @@ data class PagasUiState(
     val entregasPagasPorCliente: Map<String, List<EntregaDisplay>> = emptyMap()
 )
 
+data class NaoPagasUiState(
+    val entregasNaoPagasPorCliente: Map<String, List<EntregaDisplay>> = emptyMap()
+)
+
 data class RealizadasUiState(
     val entregasPorCliente: Map<String, List<EntregaDisplay>> = emptyMap(),
     val resumoPorCliente: Map<String, ClienteResumo> = emptyMap()
 )
 
 data class ClienteResumo(
+    val totalEntregasRealizadas: Int,
+    val totalEntregasPagas: Int,
     val totalEntregasNaoPagas: Int,
+    val valorTotalPago: Double,
     val valorTotalNaoPago: Double
 )

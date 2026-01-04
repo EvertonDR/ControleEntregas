@@ -39,6 +39,7 @@ import java.util.Date
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object EmAberto : Screen("em_aberto", "Em Aberto", Icons.Default.List)
     object Realizadas : Screen("realizadas", "Realizadas", Icons.Default.CheckCircle)
+    object NaoPagas : Screen("nao_pagas", "Não Pagas", Icons.Default.MoneyOff)
     object Pagas : Screen("pagas", "Pagas", Icons.Default.Done)
 }
 
@@ -76,7 +77,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainApp(onPermissionsRequested: () -> Unit) {
     val navController = rememberNavController()
-    val bottomNavItems = listOf(Screen.EmAberto, Screen.Realizadas, Screen.Pagas)
+    val bottomNavItems = listOf(Screen.EmAberto, Screen.Realizadas, Screen.NaoPagas, Screen.Pagas)
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val showFab = currentDestination?.route == Screen.EmAberto.route
@@ -159,6 +160,9 @@ fun MainApp(onPermissionsRequested: () -> Unit) {
             composable(Screen.Realizadas.route) {
                 RealizadasScreen()
             }
+            composable(Screen.NaoPagas.route) {
+                NaoPagasScreen()
+            }
             composable(Screen.Pagas.route) {
                 PagasScreen()
             }
@@ -182,24 +186,19 @@ fun MainScreen(
 ) {
     val mainUiState by viewModel.mainUiState.collectAsState()
     val filtroData by viewModel.filtroData.collectAsState()
-    val context = LocalContext.current
 
     Column(modifier = Modifier.padding(16.dp)) {
         Header(
             total = mainUiState.total,
             filtro = filtroData,
             onFilterClick = viewModel::setFiltroData,
-            onClearFilter = viewModel::limparFiltro,
-            onExportClick = {
-                onPermissionsRequested()
-                viewModel.exportarPdf(context)
-            }
+            onClearFilter = viewModel::limparFiltro
         )
         Spacer(modifier = Modifier.height(16.dp))
         Body(
             entregas = mainUiState.entregas,
-            onPagoChange = { entrega -> viewModel.marcarComoPaga(entrega.originalEntrega) },
-            onRealizadaChange = { entrega -> viewModel.marcarComoRealizada(entrega.originalEntrega) }
+            onPagoChange = { entrega -> viewModel.togglePagoStatus(entrega.originalEntrega) },
+            onRealizadaChange = { entrega -> viewModel.toggleRealizadaStatus(entrega.originalEntrega) }
         )
     }
 }
@@ -209,8 +208,7 @@ fun Header(
     total: Double,
     filtro: String?,
     onFilterClick: (Date) -> Unit,
-    onClearFilter: () -> Unit,
-    onExportClick: () -> Unit
+    onClearFilter: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -229,9 +227,6 @@ fun Header(
             }
             IconButton(onClick = onClearFilter, enabled = filtro != null) {
                 Icon(Icons.Default.Clear, contentDescription = "Limpar filtro")
-            }
-            IconButton(onClick = onExportClick) {
-                Icon(Icons.Default.Share, contentDescription = "Exportar PDF")
             }
         }
     }
@@ -321,7 +316,7 @@ fun EntregaItem(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = entrega.clienteNome, fontWeight = FontWeight.Bold)
-                Text(text = entrega.bairroNome, fontSize = 14.sp)
+                Text(text = "${entrega.bairroNome} - ${entrega.cidade}", fontSize = 14.sp)
                 Text(text = "Data: ${entrega.data}", fontSize = 14.sp)
             }
             Text(text = "R$ ${String.format("%.2f", entrega.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)

@@ -42,4 +42,6 @@ class EntregasRepository(
     fun getEntregasPagas(): Flow<List<EntregaEntity>> = entregaDao.listarPagas()
 
     fun getEntregasRealizadas(): Flow<List<EntregaEntity>> = entregaDao.listarRealizadas()
+
+    fun getEntregasNaoPagas(): Flow<List<EntregaEntity>> = entregaDao.listarNaoPagas()
 }

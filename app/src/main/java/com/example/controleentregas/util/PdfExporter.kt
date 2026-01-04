@@ -9,6 +9,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
 import com.example.controleentregas.data.EntregaEntity
+import com.example.controleentregas.ui.ClienteResumo
+import com.example.controleentregas.ui.EntregaDisplay
 import java.io.File
 import java.io.FileOutputStream
 
@@ -56,6 +58,91 @@ object PdfExporter {
 
         document.finishPage(page)
 
+        savePdf(context, document, nomeArquivo)
+    }
+
+    fun exportarResumoCliente(context: Context, clienteNome: String, resumo: ClienteResumo, nomeArquivo: String) {
+        val document = PdfDocument()
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
+        val page = document.startPage(pageInfo)
+        val canvas = page.canvas
+        val paint = Paint()
+        var y = 40f
+
+        // Title
+        paint.textSize = 20f
+        paint.isFakeBoldText = true
+        canvas.drawText("Resumo de Cobrança", 20f, y, paint)
+        y += 40f
+
+        // Client Name
+        paint.textSize = 16f
+        paint.isFakeBoldText = false
+        canvas.drawText("Cliente: $clienteNome", 20f, y, paint)
+        y += 40f
+
+        paint.textSize = 14f
+        canvas.drawText("Total de entregas realizadas: ${resumo.totalEntregasRealizadas}", 20f, y, paint)
+        y += 25f
+
+        // Paid section
+        canvas.drawText("Total de entregas pagas: ${resumo.totalEntregasPagas}", 20f, y, paint)
+        y += 25f
+        canvas.drawText("Valor total pago: R$ ${String.format("%.2f", resumo.valorTotalPago)}", 20f, y, paint)
+        y += 40f
+
+        // Unpaid section
+        paint.isFakeBoldText = true
+        canvas.drawText("Total de entregas não pagas: ${resumo.totalEntregasNaoPagas}", 20f, y, paint)
+        y += 25f
+        canvas.drawText("Valor total a pagar: R$ ${String.format("%.2f", resumo.valorTotalNaoPago)}", 20f, y, paint)
+        y += 25f
+
+        document.finishPage(page)
+        savePdf(context, document, nomeArquivo)
+    }
+
+    fun exportarNaoPagasCliente(context: Context, clienteNome: String, entregas: List<EntregaDisplay>, nomeArquivo: String) {
+        val document = PdfDocument()
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
+        var page = document.startPage(pageInfo)
+        var canvas = page.canvas
+        val paint = Paint()
+        var y = 40f
+
+        // Title
+        paint.textSize = 20f
+        paint.isFakeBoldText = true
+        canvas.drawText("Relatório de Cobrança", 20f, y, paint)
+        y += 40f
+
+        // Client Name
+        paint.textSize = 16f
+        paint.isFakeBoldText = false
+        canvas.drawText("Cliente: $clienteNome", 20f, y, paint)
+        y += 40f
+
+        paint.textSize = 12f
+        paint.isFakeBoldText = false
+
+        entregas.forEach { entrega ->
+            val text = "${entrega.cidade} - ${entrega.bairroNome} - R$ ${String.format("%.2f", entrega.valor)}"
+            canvas.drawText(text, 20f, y, paint)
+            y += 20f
+            if (y > 800) { // Page break
+                document.finishPage(page)
+                page = document.startPage(pageInfo)
+                canvas = page.canvas
+                y = 40f
+            }
+        }
+
+        val total = entregas.sumOf { it.valor }
+        paint.isFakeBoldText = true
+        y += 20f
+        canvas.drawText("Total a pagar: R$ ${String.format("%.2f", total)}", 20f, y, paint)
+
+        document.finishPage(page)
         savePdf(context, document, nomeArquivo)
     }
 

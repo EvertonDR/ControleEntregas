@@ -1,9 +1,14 @@
 package com.example.controleentregas.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -18,13 +23,25 @@ import java.util.Locale
 @Composable
 fun CreateDeliveryScreen(navController: NavController, viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)) {
     val clientes by viewModel.clientes.collectAsState()
-    val bairros by viewModel.bairros.collectAsState()
+    val todosOsBairros by viewModel.bairros.collectAsState()
+    val cidades = listOf("Bayeux", "João Pessoa", "Santa Rita")
 
-    var selectedCliente by remember { mutableStateOf<ClienteEntity?>(null) }
-    var selectedBairro by remember { mutableStateOf<BairroEntity?>(null) }
+    var selectedClienteId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedBairroId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedCidade by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val bairrosFiltrados = todosOsBairros.filter { it.cidade == selectedCidade }
+
+    // Reset bairro selection when cidade changes
+    LaunchedEffect(selectedCidade) {
+        selectedBairroId = null
+    }
 
     val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-    var data by remember { mutableStateOf(sdf.format(Date())) }
+    var data by rememberSaveable { mutableStateOf(sdf.format(Date())) }
+
+    val selectedCliente = clientes.find { it.id == selectedClienteId }
+    val selectedBairro = bairrosFiltrados.find { it.id == selectedBairroId }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Nova Entrega") }) }
@@ -37,9 +54,17 @@ fun CreateDeliveryScreen(navController: NavController, viewModel: MainViewModel 
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             
-            DropdownMenu(label = "Cliente", items = clientes, selectedItem = selectedCliente, onItemSelected = { selectedCliente = it }, itemLabel = { it.nome })
+            DropdownMenu(label = "Cliente", items = clientes, selectedItem = selectedCliente, onItemSelected = { selectedClienteId = it.id }, itemLabel = { it.nome })
 
-            DropdownMenu(label = "Bairro", items = bairros, selectedItem = selectedBairro, onItemSelected = { selectedBairro = it }, itemLabel = { "${it.nome} - R$ ${it.valorEntrega}" })
+            DropdownMenu(
+                label = "Cidade", 
+                items = cidades, 
+                selectedItem = selectedCidade, 
+                onItemSelected = { selectedCidade = it }, 
+                itemLabel = { it }
+            )
+
+            DropdownMenu(label = "Bairro", items = bairrosFiltrados, selectedItem = selectedBairro, onItemSelected = { selectedBairroId = it.id }, itemLabel = { "${it.nome} - R$ ${it.valorEntrega}" })
             
             OutlinedTextField(
                 value = data,
@@ -50,15 +75,13 @@ fun CreateDeliveryScreen(navController: NavController, viewModel: MainViewModel 
 
             Button(
                 onClick = {
-                    val cliente = selectedCliente
-                    val bairro = selectedBairro
-                    if (cliente != null && bairro != null) {
-                        viewModel.inserirEntrega(cliente.id, bairro.id, bairro.valorEntrega, data)
+                    if (selectedCliente != null && selectedBairro != null && selectedCidade != null) {
+                        viewModel.inserirEntrega(selectedCliente.id, selectedBairro.id, selectedBairro.valorEntrega, data, selectedCidade!!)
                         navController.popBackStack() // Go back to main screen
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = selectedCliente != null && selectedBairro != null
+                enabled = selectedCliente != null && selectedBairro != null && selectedCidade != null
             ) {
                 Text("Salvar")
             }

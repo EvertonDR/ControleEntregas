@@ -12,39 +12,50 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
-fun PagasScreen(
+fun NaoPagasScreen(
     viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
-    val pagasUiState by viewModel.pagasUiState.collectAsState()
+    val naoPagasUiState by viewModel.naoPagasUiState.collectAsState()
+    val context = LocalContext.current
 
-    if (pagasUiState.entregasPagasPorCliente.isEmpty()) {
+    if (naoPagasUiState.entregasNaoPagasPorCliente.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = "Nenhuma entrega paga encontrada")
+            Text(text = "Nenhuma entrega não paga encontrada")
         }
     } else {
         LazyColumn(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            pagasUiState.entregasPagasPorCliente.forEach { (clienteNome, entregas) ->
+            naoPagasUiState.entregasNaoPagasPorCliente.forEach { (clienteNome, entregas) ->
                 item {
-                    ClientePagasSection(clienteNome = clienteNome, entregas = entregas, viewModel = viewModel)
+                    ClienteNaoPagasSection(
+                        clienteNome = clienteNome, 
+                        entregas = entregas, 
+                        viewModel = viewModel,
+                        onDownloadClick = {
+                            viewModel.exportarNaoPagasCliente(context, clienteNome)
+                        }
+                    )
                 }
             }
         }
@@ -52,7 +63,7 @@ fun PagasScreen(
 }
 
 @Composable
-fun ClientePagasSection(clienteNome: String, entregas: List<EntregaDisplay>, viewModel: MainViewModel) {
+fun ClienteNaoPagasSection(clienteNome: String, entregas: List<EntregaDisplay>, viewModel: MainViewModel, onDownloadClick: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     Column {
@@ -68,6 +79,9 @@ fun ClientePagasSection(clienteNome: String, entregas: List<EntregaDisplay>, vie
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge
             )
+            IconButton(onClick = onDownloadClick) {
+                Icon(Icons.Default.Download, contentDescription = "Baixar Relatório de Cobrança")
+            }
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = if (expanded) "Recolher" else "Expandir"
@@ -80,7 +94,7 @@ fun ClientePagasSection(clienteNome: String, entregas: List<EntregaDisplay>, vie
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 entregas.forEach { entrega ->
-                    EntregaPagaItem(
+                    EntregaNaoPagaItem(
                         entrega = entrega,
                         onPagoChange = { viewModel.togglePagoStatus(entrega.originalEntrega) },
                         onRealizadaChange = { viewModel.toggleRealizadaStatus(entrega.originalEntrega) }
@@ -92,7 +106,7 @@ fun ClientePagasSection(clienteNome: String, entregas: List<EntregaDisplay>, vie
 }
 
 @Composable
-fun EntregaPagaItem(
+fun EntregaNaoPagaItem(
     entrega: EntregaDisplay,
     onPagoChange: () -> Unit,
     onRealizadaChange: () -> Unit

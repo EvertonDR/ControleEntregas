@@ -27,5 +27,6 @@ data class EntregaEntity(
     val valor: Double,
     val data: String,
     val pago: Boolean,
-    val realizada: Boolean = false
+    val realizada: Boolean = false,
+    val cidade: String = ""
 )

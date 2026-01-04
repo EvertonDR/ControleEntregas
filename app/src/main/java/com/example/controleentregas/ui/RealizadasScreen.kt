@@ -5,15 +5,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,9 +51,10 @@ fun RealizadasScreen(
                     ClienteRealizadasSection(
                         clienteNome = clienteNome,
                         entregas = entregas,
-                        onShareClick = {
+                        onDownloadClick = {
                             viewModel.exportarResumoCliente(context, clienteNome)
-                        }
+                        },
+                        viewModel = viewModel
                     )
                 }
             }
@@ -62,39 +66,82 @@ fun RealizadasScreen(
 fun ClienteRealizadasSection(
     clienteNome: String,
     entregas: List<EntregaDisplay>,
-    onShareClick: () -> Unit
+    onDownloadClick: () -> Unit,
+    viewModel: MainViewModel
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var isClienteExpanded by remember { mutableStateOf(false) }
 
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable { isClienteExpanded = !isClienteExpanded }
                 .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = clienteNome,
+                text = "$clienteNome (${entregas.size})",
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge
             )
-            IconButton(onClick = onShareClick) {
-                Icon(Icons.Default.Share, contentDescription = "Compartilhar Resumo")
+            IconButton(onClick = onDownloadClick) {
+                Icon(Icons.Default.Download, contentDescription = "Baixar Resumo")
             }
             Icon(
-                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Recolher" else "Expandir"
+                imageVector = if (isClienteExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (isClienteExpanded) "Recolher" else "Expandir"
             )
         }
 
-        if (expanded) {
+        if (isClienteExpanded) {
+            val (entregasPagas, entregasNaoPagas) = entregas.partition { it.pago }
+
+            Column(modifier = Modifier.padding(start = 16.dp, top = 8.dp)) {
+                EntregasSubSection(title = "Pagas (${entregasPagas.size})", entregas = entregasPagas, viewModel = viewModel)
+                EntregasSubSection(title = "Não Pagas (${entregasNaoPagas.size})", entregas = entregasNaoPagas, viewModel = viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EntregasSubSection(
+    title: String, 
+    entregas: List<EntregaDisplay>,
+    viewModel: MainViewModel
+) {
+    var isSubSectionExpanded by remember { mutableStateOf(false) }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isSubSectionExpanded = !isSubSectionExpanded }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Icon(
+                imageVector = if (isSubSectionExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (isSubSectionExpanded) "Recolher" else "Expandir"
+            )
+        }
+
+        if (isSubSectionExpanded) {
             Column(
-                modifier = Modifier.padding(start = 16.dp),
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 entregas.forEach { entrega ->
-                    EntregaRealizadaItem(entrega = entrega)
+                    EntregaRealizadaItem(
+                        entrega = entrega,
+                        onPagoChange = { viewModel.togglePagoStatus(entrega.originalEntrega) },
+                        onRealizadaChange = { viewModel.toggleRealizadaStatus(entrega.originalEntrega) }
+                    )
                 }
             }
         }
@@ -102,13 +149,27 @@ fun ClienteRealizadasSection(
 }
 
 @Composable
-fun EntregaRealizadaItem(entrega: EntregaDisplay) {
+fun EntregaRealizadaItem(
+    entrega: EntregaDisplay,
+    onPagoChange: () -> Unit,
+    onRealizadaChange: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = entrega.pago, onCheckedChange = { onPagoChange() })
+                    Text("Paga", fontSize = 12.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = entrega.realizada, onCheckedChange = { onRealizadaChange() })
+                    Text("Realizada", fontSize = 12.sp)
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "Data: ${entrega.data}", fontSize = 14.sp)
-                Text(text = "Bairro: ${entrega.bairroNome}", fontSize = 14.sp)
-                Text(text = if (entrega.pago) "Pago" else "Não Pago", color = if (entrega.pago) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                Text(text = "${entrega.bairroNome} - ${entrega.cidade}", fontSize = 14.sp)
             }
             Text(
                 text = "R$ ${String.format("%.2f", entrega.valor)}",
