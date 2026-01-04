@@ -11,7 +11,8 @@ import androidx.room.RoomDatabase
         BairroEntity::class,
         EntregaEntity::class
     ],
-    version = 1
+    version = 2,
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -29,7 +30,9 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "controle_entregas_db"
-                ).build()
+                )
+                .fallbackToDestructiveMigration()
+                .build()
                 INSTANCE = instance
                 instance
             }

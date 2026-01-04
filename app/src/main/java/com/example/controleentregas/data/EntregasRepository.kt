@@ -38,4 +38,8 @@ class EntregasRepository(
     suspend fun updateEntrega(entrega: EntregaEntity) {
         entregaDao.update(entrega)
     }
+    
+    fun getEntregasPagas(): Flow<List<EntregaEntity>> = entregaDao.listarPagas()
+
+    fun getEntregasRealizadas(): Flow<List<EntregaEntity>> = entregaDao.listarRealizadas()
 }

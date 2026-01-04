@@ -26,4 +26,10 @@ interface EntregaDao {
 
     @Query("SELECT SUM(valor) FROM entregas WHERE pago = 0 AND data = :data")
     fun totalEmAbertoPorData(data: String): Flow<Double?>
+    
+    @Query("SELECT * FROM entregas WHERE pago = 1 ORDER BY data DESC")
+    fun listarPagas(): Flow<List<EntregaEntity>>
+
+    @Query("SELECT * FROM entregas WHERE realizada = 1 ORDER BY data DESC")
+    fun listarRealizadas(): Flow<List<EntregaEntity>>
 }
