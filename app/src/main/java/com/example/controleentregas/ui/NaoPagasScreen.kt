@@ -37,25 +37,33 @@ fun NaoPagasScreen(
     val naoPagasUiState by viewModel.naoPagasUiState.collectAsState()
     val context = LocalContext.current
 
-    if (naoPagasUiState.entregasNaoPagasPorCliente.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = "Nenhuma entrega não paga encontrada")
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            naoPagasUiState.entregasNaoPagasPorCliente.forEach { (clienteNome, entregas) ->
-                item {
-                    ClienteNaoPagasSection(
-                        clienteNome = clienteNome, 
-                        entregas = entregas, 
-                        viewModel = viewModel,
-                        onDownloadClick = {
-                            viewModel.exportarNaoPagasCliente(context, clienteNome)
-                        }
-                    )
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text("Total a Receber", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("R$ ${String.format("%.2f", naoPagasUiState.totalNaoPago)}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        
+        Spacer(modifier = Modifier.padding(8.dp))
+
+        if (naoPagasUiState.entregasNaoPagasPorCliente.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = "Nenhuma entrega não paga encontrada")
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                naoPagasUiState.entregasNaoPagasPorCliente.forEach { (clienteNome, entregas) ->
+                    val subtotal = naoPagasUiState.subtotalPorCliente[clienteNome] ?: 0.0
+                    item {
+                        ClienteNaoPagasSection(
+                            clienteNome = clienteNome, 
+                            entregas = entregas, 
+                            subtotal = subtotal,
+                            viewModel = viewModel,
+                            onDownloadClick = {
+                                viewModel.exportarNaoPagasCliente(context, clienteNome)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -63,7 +71,7 @@ fun NaoPagasScreen(
 }
 
 @Composable
-fun ClienteNaoPagasSection(clienteNome: String, entregas: List<EntregaDisplay>, viewModel: MainViewModel, onDownloadClick: () -> Unit) {
+fun ClienteNaoPagasSection(clienteNome: String, entregas: List<EntregaDisplay>, subtotal: Double, viewModel: MainViewModel, onDownloadClick: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     Column {
@@ -75,7 +83,7 @@ fun ClienteNaoPagasSection(clienteNome: String, entregas: List<EntregaDisplay>, 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "$clienteNome (${entregas.size})",
+                text = "$clienteNome (${entregas.size}) - R$ ${String.format("%.2f", subtotal)}",
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.titleLarge
             )

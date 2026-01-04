@@ -80,15 +80,24 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
             )
     
     val naoPagasUiState: StateFlow<NaoPagasUiState> = 
-        getEntregasDisplayFlow(entregasRepository.getEntregasNaoPagas())
-            .map { entregasDisplay ->
-                val entregasAgrupadas = entregasDisplay.groupBy { it.clienteNome }
-                NaoPagasUiState(entregasNaoPagasPorCliente = entregasAgrupadas)
-            }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000L),
-                initialValue = NaoPagasUiState()
+        combine(
+            getEntregasDisplayFlow(entregasRepository.getEntregasNaoPagas()),
+            entregasRepository.getTotalNaoPago()
+        ) { entregasDisplay, total ->
+            val entregasAgrupadas = entregasDisplay.groupBy { it.clienteNome }
+            val subtotais = entregasAgrupadas.mapValues { (_, entregas) ->
+                entregas.sumOf { it.valor }
+            }
+            NaoPagasUiState(
+                entregasNaoPagasPorCliente = entregasAgrupadas,
+                subtotalPorCliente = subtotais,
+                totalNaoPago = total ?: 0.0
             )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000L),
+            initialValue = NaoPagasUiState()
+        )
 
     val realizadasUiState: StateFlow<RealizadasUiState> = 
         getEntregasDisplayFlow(entregasRepository.getEntregasRealizadas())
@@ -140,6 +149,12 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
         }
     }
 
+    fun deleteEntrega(entrega: EntregaEntity) {
+        viewModelScope.launch {
+            entregasRepository.deleteEntrega(entrega)
+        }
+    }
+
     fun setFiltroData(data: Date?) {
         if (data == null) {
             _filtroData.value = null
@@ -151,6 +166,16 @@ class MainViewModel(private val entregasRepository: EntregasRepository) : ViewMo
     
     fun limparFiltro() {
         _filtroData.value = null
+    }
+
+    fun exportarBackupTotal(context: Context) {
+        viewModelScope.launch {
+            getEntregasDisplayFlow(entregasRepository.getTodasAsEntregas()).first().let { entregas ->
+                val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                val nomeArquivo = "Backup_Total_${sdf.format(Date())}"
+                PdfExporter.exportarBackupTotal(context, entregas, nomeArquivo)
+            }
+        }
     }
 
     fun exportarResumoCliente(context: Context, clienteNome: String) {
@@ -213,7 +238,9 @@ data class PagasUiState(
 )
 
 data class NaoPagasUiState(
-    val entregasNaoPagasPorCliente: Map<String, List<EntregaDisplay>> = emptyMap()
+    val entregasNaoPagasPorCliente: Map<String, List<EntregaDisplay>> = emptyMap(),
+    val subtotalPorCliente: Map<String, Double> = emptyMap(),
+    val totalNaoPago: Double = 0.0
 )
 
 data class RealizadasUiState(

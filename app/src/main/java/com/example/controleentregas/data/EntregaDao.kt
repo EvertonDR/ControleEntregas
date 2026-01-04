@@ -1,6 +1,7 @@
 package com.example.controleentregas.data
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
@@ -14,6 +15,9 @@ interface EntregaDao {
 
     @Update
     suspend fun update(entrega: EntregaEntity)
+
+    @Delete
+    suspend fun delete(entrega: EntregaEntity)
 
     @Query("SELECT * FROM entregas WHERE realizada = 0 ORDER BY data DESC")
     fun listarEmAberto(): Flow<List<EntregaEntity>>
@@ -35,4 +39,10 @@ interface EntregaDao {
 
     @Query("SELECT * FROM entregas WHERE pago = 0 ORDER BY data DESC")
     fun listarNaoPagas(): Flow<List<EntregaEntity>>
+
+    @Query("SELECT SUM(valor) FROM entregas WHERE pago = 0")
+    fun totalNaoPago(): Flow<Double?>
+
+    @Query("SELECT * FROM entregas ORDER BY clienteId, data DESC")
+    fun listarTodas(): Flow<List<EntregaEntity>>
 }

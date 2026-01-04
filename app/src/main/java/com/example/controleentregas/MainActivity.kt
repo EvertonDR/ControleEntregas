@@ -186,19 +186,54 @@ fun MainScreen(
 ) {
     val mainUiState by viewModel.mainUiState.collectAsState()
     val filtroData by viewModel.filtroData.collectAsState()
+    val context = LocalContext.current
+
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var entregaToDelete by remember { mutableStateOf<EntregaDisplay?>(null) }
+
+    if (showDeleteDialog && entregaToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Confirmar Exclusão") },
+            text = { Text("Tem certeza de que deseja apagar esta entrega?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteEntrega(entregaToDelete!!.originalEntrega)
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Deletar")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDeleteDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Header(
             total = mainUiState.total,
             filtro = filtroData,
             onFilterClick = viewModel::setFiltroData,
-            onClearFilter = viewModel::limparFiltro
+            onClearFilter = viewModel::limparFiltro,
+            onBackupClick = { 
+                onPermissionsRequested()
+                viewModel.exportarBackupTotal(context)
+             }
         )
         Spacer(modifier = Modifier.height(16.dp))
         Body(
             entregas = mainUiState.entregas,
             onPagoChange = { entrega -> viewModel.togglePagoStatus(entrega.originalEntrega) },
-            onRealizadaChange = { entrega -> viewModel.toggleRealizadaStatus(entrega.originalEntrega) }
+            onRealizadaChange = { entrega -> viewModel.toggleRealizadaStatus(entrega.originalEntrega) },
+            onDeleteClick = {
+                entregaToDelete = it
+                showDeleteDialog = true
+            }
         )
     }
 }
@@ -208,7 +243,8 @@ fun Header(
     total: Double,
     filtro: String?,
     onFilterClick: (Date) -> Unit,
-    onClearFilter: () -> Unit
+    onClearFilter: () -> Unit,
+    onBackupClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -222,6 +258,9 @@ fun Header(
             Text(text = "R$ ${String.format("%.2f", total)}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
         Row {
+            IconButton(onClick = onBackupClick) {
+                Icon(Icons.Default.Download, contentDescription = "Baixar Backup Total")
+            }
             IconButton(onClick = { showDatePicker = true }) {
                 Icon(Icons.Default.CalendarToday, contentDescription = "Filtrar por data")
             }
@@ -276,7 +315,8 @@ fun DatePickerDialog(
 fun Body(
     entregas: List<EntregaDisplay>,
     onPagoChange: (EntregaDisplay) -> Unit,
-    onRealizadaChange: (EntregaDisplay) -> Unit
+    onRealizadaChange: (EntregaDisplay) -> Unit,
+    onDeleteClick: (EntregaDisplay) -> Unit
 ) {
     if (entregas.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -288,7 +328,8 @@ fun Body(
                 EntregaItem(
                     entrega = it,
                     onPagoChange = { onPagoChange(it) },
-                    onRealizadaChange = { onRealizadaChange(it) }
+                    onRealizadaChange = { onRealizadaChange(it) },
+                    onDeleteClick = { onDeleteClick(it) }
                 )
             }
         }
@@ -299,7 +340,8 @@ fun Body(
 fun EntregaItem(
     entrega: EntregaDisplay,
     onPagoChange: () -> Unit,
-    onRealizadaChange: () -> Unit
+    onRealizadaChange: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -319,7 +361,12 @@ fun EntregaItem(
                 Text(text = "${entrega.bairroNome} - ${entrega.cidade}", fontSize = 14.sp)
                 Text(text = "Data: ${entrega.data}", fontSize = 14.sp)
             }
-            Text(text = "R$ ${String.format("%.2f", entrega.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            Column(horizontalAlignment = Alignment.End) {
+                IconButton(onClick = onDeleteClick) {
+                    Icon(Icons.Default.Delete, contentDescription = "Deletar Entrega")
+                }
+                Text(text = "R$ ${String.format("%.2f", entrega.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            }
         }
     }
 }

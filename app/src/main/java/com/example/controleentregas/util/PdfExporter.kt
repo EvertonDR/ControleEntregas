@@ -16,7 +16,7 @@ import java.io.FileOutputStream
 
 object PdfExporter {
 
-    fun export(context: Context, entregas: List<EntregaEntity>, nomeArquivo: String) {
+    fun exportarBackupTotal(context: Context, entregas: List<EntregaDisplay>, nomeArquivo: String) {
         if (entregas.isEmpty()) {
             Toast.makeText(context, "Nenhuma entrega para exportar", Toast.LENGTH_SHORT).show()
             return
@@ -26,41 +26,46 @@ object PdfExporter {
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
         var page = document.startPage(pageInfo)
         var canvas = page.canvas
-
+        val paint = Paint()
         var y = 40f
 
-        val paint = Paint()
-        paint.textSize = 16f
+        paint.textSize = 20f
         paint.isFakeBoldText = true
-        canvas.drawText("Relatório de Entregas em Aberto", 20f, y, paint)
+        canvas.drawText("Backup Total de Entregas", 20f, y, paint)
         y += 40f
 
-        paint.textSize = 12f
-        paint.isFakeBoldText = false
+        val entregasPorCliente = entregas.groupBy { it.clienteNome }
 
-        entregas.forEach { entrega ->
-            // Aqui idealmente teríamos os nomes, mas por enquanto usamos os IDs
-            val text = "ID: ${entrega.id}, Cliente: ${entrega.clienteId}, Bairro: ${entrega.bairroId}, Data: ${entrega.data}, Valor: R$ ${String.format("%.2f", entrega.valor)}"
-            canvas.drawText(text, 20f, y, paint)
-            y += 20f
-            if (y > 800) { // Page break
-                document.finishPage(page)
-                page = document.startPage(pageInfo)
-                canvas = page.canvas
-                y = 40f
+        entregasPorCliente.forEach { (cliente, listaDeEntregas) ->
+            // Adiciona nome do cliente
+            paint.textSize = 16f
+            paint.isFakeBoldText = true
+            y += 20f // Espaço antes do nome do cliente
+            canvas.drawText("Cliente: $cliente", 20f, y, paint)
+            y += 25f
+
+            paint.textSize = 12f
+            paint.isFakeBoldText = false
+
+            listaDeEntregas.forEach { entrega ->
+                if (y > 800) { // Quebra de página
+                    document.finishPage(page)
+                    page = document.startPage(pageInfo)
+                    canvas = page.canvas
+                    y = 40f
+                }
+                val statusPago = if (entrega.pago) "Paga" else "Não Paga"
+                val statusRealizada = if (entrega.realizada) "Realizada" else "Não Realizada"
+                val text = "${entrega.data} - ${entrega.cidade} - ${entrega.bairroNome} - R$ ${String.format("%.2f", entrega.valor)} ($statusPago, $statusRealizada)"
+                canvas.drawText(text, 30f, y, paint)
+                y += 20f
             }
         }
-        
-        val total = entregas.sumOf { it.valor }
-        paint.isFakeBoldText = true
-        y+= 20f
-        canvas.drawText("Total: R$ ${String.format("%.2f", total)}", 20f, y, paint)
 
         document.finishPage(page)
-
         savePdf(context, document, nomeArquivo)
     }
-
+    
     fun exportarResumoCliente(context: Context, clienteNome: String, resumo: ClienteResumo, nomeArquivo: String) {
         val document = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
