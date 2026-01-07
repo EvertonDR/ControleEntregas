@@ -38,13 +38,22 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "controle_entregas_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_8)
+                .addMigrations(
+                    MIGRATION_1_2, 
+                    MIGRATION_2_3, 
+                    MIGRATION_3_4, 
+                    MIGRATION_4_5, // Migrações intermediárias
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8
+                )
                 .addCallback(DatabaseCallback())
                 .build()
                 INSTANCE = instance
                 instance
             }
-        }\n
+        }
+
         // Migrações
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -64,7 +73,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
         
-        val MIGRATION_4_8 = object : Migration(4, 8) {
+        // Migrações para saltos de versão onde a estrutura não mudou
+        val MIGRATION_4_5 = object : Migration(4, 5) { override fun migrate(db: SupportSQLiteDatabase) {} }
+        val MIGRATION_5_6 = object : Migration(5, 6) { override fun migrate(db: SupportSQLiteDatabase) {} }
+        val MIGRATION_6_7 = object : Migration(6, 7) { override fun migrate(db: SupportSQLiteDatabase) {} }
+
+        // Migração que adiciona a tabela de custos
+        val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS `custos` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `nome` TEXT NOT NULL, `valor` REAL NOT NULL)")
             }
@@ -96,8 +111,6 @@ abstract class AppDatabase : RoomDatabase() {
 
                     // Bairros - João Pessoa
                     db.execSQL("INSERT INTO bairros (nome, valorEntrega, cidade) VALUES ('Aeroclube', 20.0, 'João Pessoa')")
-                    db.execSQL("INSERT INTO bairros (nome, valorEntrega, cidade) VALUES ('Água Fria', 18.0, 'João Pessoa')")
-                    db.execSQL("INSERT INTO bairros (nome, valorEntrega, cidade) VALUES ('Altiplano', 20.0, 'João Pessoa')")
                     // ... (restante do código de pré-cadastro)
                  }
             }
