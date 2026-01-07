@@ -17,10 +17,12 @@ interface AppContainer {
  */
 class DefaultAppContainer(private val context: Context) : AppContainer {
     override val entregasRepository: EntregasRepository by lazy {
+        val database = AppDatabase.getDatabase(context)
         EntregasRepository(
-            AppDatabase.getDatabase(context).clienteDao(),
-            AppDatabase.getDatabase(context).bairroDao(),
-            AppDatabase.getDatabase(context).entregaDao()
+            database.clienteDao(),
+            database.bairroDao(),
+            database.entregaDao(),
+            database.custoDao()
         )
     }
 }

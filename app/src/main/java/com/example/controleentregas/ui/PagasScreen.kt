@@ -11,45 +11,156 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Money
+import androidx.compose.material.icons.filled.MoneyOff
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 
 @Composable
 fun PagasScreen(
+    navController: NavController,
     viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val pagasUiState by viewModel.pagasUiState.collectAsState()
+    val filtroData by viewModel.filtroDataPagas.collectAsState()
+    var isExpanded by remember { mutableStateOf(false) }
+    var showAddCustoDialog by remember { mutableStateOf(false) }
 
-    if (pagasUiState.entregasPagasPorCliente.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = "Nenhuma entrega paga encontrada")
+    if (showAddCustoDialog) {
+        AddCustoDialog(
+            onDismissRequest = { showAddCustoDialog = false },
+            onConfirm = {
+                viewModel.inserirCusto(it.nome, it.valor)
+                showAddCustoDialog = false
+            }
+        )
+    }
+
+    Scaffold(
+        floatingActionButton = {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (isExpanded) {
+                    FloatingActionButton(
+                        onClick = {
+                            navController.navigate("caixa_screen")
+                            isExpanded = false
+                        },
+                    ) {
+                        Icon(Icons.Default.Money, "Caixa")
+                    }
+                    FloatingActionButton(
+                        onClick = {
+                            showAddCustoDialog = true
+                            isExpanded = false
+                        },
+                    ) {
+                        Icon(Icons.Default.MoneyOff, "Adicionar Custo")
+                    }
+                }
+                FloatingActionButton(onClick = { isExpanded = !isExpanded }) {
+                    Icon(
+                        if (isExpanded) Icons.Default.Close else Icons.Default.Add,
+                        contentDescription = if (isExpanded) "Fechar" else "Adicionar"
+                    )
+                }
+            }
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            pagasUiState.entregasPagasPorCliente.forEach { (clienteNome, entregas) ->
-                item {
-                    ClientePagasSection(clienteNome = clienteNome, entregas = entregas, viewModel = viewModel)
+    ) {
+        Column(modifier = Modifier.padding(it).padding(16.dp)) {
+            Header(
+                defaultTitle = "Total Recebido",
+                total = pagasUiState.totalPago,
+                filtro = filtroData,
+                onFilterClick = viewModel::setFiltroDataPagas,
+                onClearFilter = viewModel::limparFiltroPagas,
+                onBackupClick = null
+            )
+            Spacer(modifier = Modifier.padding(8.dp))
+
+            if (pagasUiState.entregasPagasPorCliente.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Nenhuma entrega paga encontrada")
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    pagasUiState.entregasPagasPorCliente.forEach { (clienteNome, entregas) ->
+                        item {
+                            ClientePagasSection(clienteNome = clienteNome, entregas = entregas, viewModel = viewModel)
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+@Composable
+fun AddCustoDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: (CustoTemp) -> Unit
+) {
+    var nome by rememberSaveable { mutableStateOf("") }
+    var valor by rememberSaveable { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text("Adicionar Novo Custo") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = nome,
+                    onValueChange = { nome = it },
+                    label = { Text("Nome do custo") }
+                )
+                OutlinedTextField(
+                    value = valor,
+                    onValueChange = { valor = it },
+                    label = { Text("Valor do custo") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { 
+                    val valorDouble = valor.toDoubleOrNull()
+                    if(nome.isNotBlank() && valorDouble != null) {
+                        onConfirm(CustoTemp(nome, valorDouble))
+                    }
+                }
+            ) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismissRequest) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+data class CustoTemp(val nome: String, val valor: Double)
 
 @Composable
 fun ClientePagasSection(clienteNome: String, entregas: List<EntregaDisplay>, viewModel: MainViewModel) {

@@ -216,6 +216,7 @@ fun MainScreen(
 
     Column(modifier = Modifier.padding(16.dp)) {
         Header(
+            defaultTitle = "Total em Aberto",
             total = mainUiState.total,
             filtro = filtroData,
             onFilterClick = viewModel::setFiltroData,
@@ -240,11 +241,12 @@ fun MainScreen(
 
 @Composable
 fun Header(
+    defaultTitle: String,
     total: Double,
     filtro: String?,
     onFilterClick: (Date) -> Unit,
     onClearFilter: () -> Unit,
-    onBackupClick: () -> Unit
+    onBackupClick: () -> Unit? = null
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -254,12 +256,14 @@ fun Header(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
-            Text(text = filtro ?: "Total em Aberto", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = filtro ?: defaultTitle, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(text = "R$ ${String.format("%.2f", total)}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-        Row {
-            IconButton(onClick = onBackupClick) {
-                Icon(Icons.Default.Download, contentDescription = "Baixar Backup Total")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (onBackupClick != null) {
+                IconButton(onClick = onBackupClick) {
+                    Icon(Icons.Default.Download, contentDescription = "Baixar Backup Total")
+                }
             }
             IconButton(onClick = { showDatePicker = true }) {
                 Icon(Icons.Default.CalendarToday, contentDescription = "Filtrar por data")

@@ -5,7 +5,8 @@ import kotlinx.coroutines.flow.Flow
 class EntregasRepository(
     private val clienteDao: ClienteDao,
     private val bairroDao: BairroDao,
-    private val entregaDao: EntregaDao
+    private val entregaDao: EntregaDao,
+    private val custoDao: CustoDao
 ) {
 
     // Cliente funcs
@@ -45,6 +46,12 @@ class EntregasRepository(
     
     fun getEntregasPagas(): Flow<List<EntregaEntity>> = entregaDao.listarPagas()
 
+    fun getEntregasPagasPorData(data: String): Flow<List<EntregaEntity>> = entregaDao.listarPagasPorData(data)
+
+    fun getTotalPago(): Flow<Double?> = entregaDao.totalPago()
+
+    fun getTotalPagoPorData(data: String): Flow<Double?> = entregaDao.totalPagoPorData(data)
+
     fun getEntregasRealizadas(): Flow<List<EntregaEntity>> = entregaDao.listarRealizadas()
 
     fun getEntregasNaoPagas(): Flow<List<EntregaEntity>> = entregaDao.listarNaoPagas()
@@ -52,4 +59,17 @@ class EntregasRepository(
     fun getTotalNaoPago(): Flow<Double?> = entregaDao.totalNaoPago()
 
     fun getTodasAsEntregas(): Flow<List<EntregaEntity>> = entregaDao.listarTodas()
+
+    // Custo funcs
+    fun getCustos(): Flow<List<CustoEntity>> = custoDao.listar()
+
+    fun getTotalCustos(): Flow<Double?> = custoDao.totalCustos()
+
+    suspend fun insertCusto(custo: CustoEntity) {
+        custoDao.inserir(custo)
+    }
+
+    suspend fun deleteCusto(custo: CustoEntity) {
+        custoDao.delete(custo)
+    }
 }
