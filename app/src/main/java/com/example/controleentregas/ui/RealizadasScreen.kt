@@ -14,7 +14,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.util.Calendar
 
 @Composable
 fun RealizadasScreen(
@@ -23,81 +22,38 @@ fun RealizadasScreen(
     val realizadasUiState by viewModel.realizadasUiState.collectAsState()
     val filtroData by viewModel.filtroDataRealizadas.collectAsState()
     val context = LocalContext.current
-    var showDatePicker by remember { mutableStateOf(false) }
 
-    Scaffold(
-        floatingActionButton = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 32.dp), // Compensar padding do Scaffold
-                horizontalArrangement = Arrangement.Start
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (filtroData != null) {
-                        SmallFloatingActionButton(
-                            onClick = { viewModel.limparFiltroRealizadas() },
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        ) {
-                            Icon(Icons.Default.Clear, "Limpar Filtro")
-                        }
-                    }
-                    FloatingActionButton(
-                        onClick = { showDatePicker = true },
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Icon(Icons.Default.CalendarToday, "Filtrar por data")
-                    }
-                }
-            }
-        }
-    ) { paddingValues ->
-        Column(modifier = Modifier.padding(paddingValues).padding(16.dp)) {
-            Header(
-                defaultTitle = "Total Realizadas",
-                total = realizadasUiState.totalRealizadas,
-                filtro = filtroData,
-                onFilterClick = { viewModel.setFiltroDataRealizadas(it) },
-                onClearFilter = { viewModel.limparFiltroRealizadas() },
-                showFilterActions = false // Esconde os filtros do topo
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (realizadasUiState.entregasPorCliente.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = "Nenhuma entrega realizada encontrada")
-                }
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    realizadasUiState.entregasPorCliente.forEach { (clienteNome, entregas) ->
-                        item {
-                            ClienteRealizadasSection(
-                                clienteNome = clienteNome,
-                                entregas = entregas,
-                                onDownloadClick = {
-                                    viewModel.exportarResumoCliente(context, clienteNome)
-                                },
-                                viewModel = viewModel
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showDatePicker) {
-        val calendar = Calendar.getInstance()
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            onDateSet = { year, month, day ->
-                calendar.set(year, month, day)
-                viewModel.setFiltroDataRealizadas(calendar.time)
-                showDatePicker = false
-            },
-            initialDate = calendar
+    Column(modifier = Modifier.padding(16.dp)) {
+        Header(
+            defaultTitle = "Total Realizadas",
+            total = realizadasUiState.totalRealizadas,
+            filtro = filtroData,
+            onFilterClick = { viewModel.setFiltroDataRealizadas(it) },
+            onClearFilter = { viewModel.setFiltroDataRealizadas(null) }, // Correção: usando setFiltroDataRealizadas(null)
+            showFilterActions = false // Esconde os filtros do topo, agora usamos o botão central
         )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (realizadasUiState.entregasPorCliente.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(text = "Nenhuma entrega realizada encontrada")
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                realizadasUiState.entregasPorCliente.forEach { (clienteNome, entregas) ->
+                    item {
+                        ClienteRealizadasSection(
+                            clienteNome = clienteNome,
+                            entregas = entregas,
+                            onDownloadClick = {
+                                viewModel.exportarResumoCliente(context, clienteNome)
+                            },
+                            viewModel = viewModel
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

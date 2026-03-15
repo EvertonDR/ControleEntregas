@@ -44,59 +44,68 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 }
 
 class MainActivity : ComponentActivity() {
-
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
-            // Permission is granted.
-        } else {
-            // Explain to the user that the feature is unavailable
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             ControleEntregasTheme {
-                MainApp(onPermissionsRequested = { askForPermissions() })
-            }
-        }
-    }
-
-    private fun askForPermissions() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                MainApp(onPermissionsRequested = { /* Implementação de permissões se necessário */ })
             }
         }
     }
 }
 
 @Composable
-fun MainApp(onPermissionsRequested: () -> Unit) {
+fun MainApp(
+    onPermissionsRequested: () -> Unit,
+    viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)
+) {
     val navController = rememberNavController()
     val bottomNavItems = listOf(Screen.EmAberto, Screen.Realizadas, Screen.NaoPagas, Screen.Pagas)
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    val showFab = currentDestination?.route == Screen.EmAberto.route
+    val currentRoute = navBackStackEntry?.destination?.route
+    
+    val showFab = currentRoute == Screen.EmAberto.route
     var isExpanded by remember { mutableStateOf(false) }
+    var showGlobalDatePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             NavigationBar {
-                bottomNavItems.forEach { screen ->
+                // Primeira metade: Em Aberto e Realizadas
+                bottomNavItems.take(2).forEach { screen ->
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.label) },
+                        icon = { Icon(screen.icon, null) },
                         label = { Text(screen.label) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = currentRoute == screen.route,
                         onClick = {
                             navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
+
+                // Botão de Filtro Centralizado
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.DateRange, null) },
+                    label = { Text("Filtrar") },
+                    selected = false,
+                    onClick = { showGlobalDatePicker = true }
+                )
+
+                // Segunda metade: Não Pagas e Pagas
+                bottomNavItems.takeLast(2).forEach { screen ->
+                    NavigationBarItem(
+                        icon = { Icon(screen.icon, null) },
+                        label = { Text(screen.label) },
+                        selected = currentRoute == screen.route,
+                        onClick = {
+                            navController.navigate(screen.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                                 launchSingleTop = true
                                 restoreState = true
                             }
@@ -107,227 +116,129 @@ fun MainApp(onPermissionsRequested: () -> Unit) {
         },
         floatingActionButton = {
             if (showFab) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (isExpanded) {
-                        FloatingActionButton(
-                            onClick = {
-                                navController.navigate("create_delivery_screen")
-                                isExpanded = false
-                            },
-                        ) {
-                            Icon(Icons.Default.Motorcycle, "Adicionar Entrega")
-                        }
-                        FloatingActionButton(
-                            onClick = {
-                                navController.navigate("create_cliente_screen")
-                                isExpanded = false
-                            },
-                        ) {
-                            Icon(Icons.Default.PersonAdd, "Adicionar Cliente")
-                        }
-                        FloatingActionButton(
-                            onClick = {
-                                navController.navigate("create_bairro_screen")
-                                isExpanded = false
-                            },
-                        ) {
-                            Icon(Icons.Default.AddLocation, "Adicionar Bairro")
-                        }
+                        FloatingActionButton(onClick = { navController.navigate("create_delivery_screen"); isExpanded = false }) { Icon(Icons.Default.Motorcycle, null) }
+                        FloatingActionButton(onClick = { navController.navigate("create_cliente_screen"); isExpanded = false }) { Icon(Icons.Default.PersonAdd, null) }
+                        FloatingActionButton(onClick = { navController.navigate("create_bairro_screen"); isExpanded = false }) { Icon(Icons.Default.AddLocation, null) }
                     }
                     FloatingActionButton(onClick = { isExpanded = !isExpanded }) {
-                        Icon(
-                            if (isExpanded) Icons.Default.Close else Icons.Default.Add,
-                            contentDescription = if (isExpanded) "Fechar" else "Adicionar"
-                        )
+                        Icon(if (isExpanded) Icons.Default.Close else Icons.Default.Add, null)
                     }
                 }
             }
         }
-    ) {
-        NavHost(
-            navController = navController,
-            startDestination = Screen.EmAberto.route,
-            modifier = Modifier.padding(it)
-        ) {
-            composable(Screen.EmAberto.route) {
-                MainScreen(
-                    onPermissionsRequested = onPermissionsRequested
-                )
-            }
-            composable(Screen.Realizadas.route) {
-                RealizadasScreen()
-            }
-            composable(Screen.NaoPagas.route) {
-                NaoPagasScreen()
-            }
-            composable(Screen.Pagas.route) {
-                PagasScreen(navController = navController)
-            }
-            composable("caixa_screen") {
-                CaixaScreen()
-            }
-            composable("create_delivery_screen") {
-                CreateDeliveryScreen(navController)
-            }
-            composable("create_bairro_screen") {
-                CreateBairroScreen(navController)
-            }
-            composable("create_cliente_screen") {
-                CreateClienteScreen(navController)
-            }
+    ) { innerPadding ->
+        NavHost(navController, Screen.EmAberto.route, Modifier.padding(innerPadding)) {
+            composable(Screen.EmAberto.route) { MainScreen(onPermissionsRequested, viewModel) }
+            composable(Screen.Realizadas.route) { RealizadasScreen(viewModel) }
+            composable(Screen.NaoPagas.route) { NaoPagasScreen(viewModel) }
+            composable(Screen.Pagas.route) { PagasScreen(navController, viewModel) }
+            composable("caixa_screen") { CaixaScreen(viewModel) }
+            composable("create_delivery_screen") { CreateDeliveryScreen(navController, viewModel) }
+            composable("create_bairro_screen") { CreateBairroScreen(navController, viewModel) }
+            composable("create_cliente_screen") { CreateClienteScreen(navController, viewModel) }
         }
+    }
+
+    if (showGlobalDatePicker) {
+        AlertDialog(
+            onDismissRequest = { showGlobalDatePicker = false },
+            title = { Text("Filtrar por Data") },
+            text = { Text("Escolha uma opção para a aba atual:") },
+            confirmButton = {
+                Button(onClick = {
+                    showGlobalDatePicker = false
+                    // Abre o seletor de data padrão do sistema
+                    val cal = Calendar.getInstance()
+                    val dpd = android.app.DatePickerDialog(
+                        navController.context,
+                        { _, y, m, d ->
+                            cal.set(y, m, d)
+                            when (currentRoute) {
+                                Screen.EmAberto.route -> viewModel.setFiltroData(cal.time)
+                                Screen.Realizadas.route -> viewModel.setFiltroDataRealizadas(cal.time)
+                                Screen.Pagas.route -> viewModel.setFiltroDataPagas(cal.time)
+                            }
+                        },
+                        cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)
+                    )
+                    dpd.show()
+                }) { Text("Selecionar Data") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    when (currentRoute) {
+                        Screen.EmAberto.route -> viewModel.setFiltroData(null)
+                        Screen.Realizadas.route -> viewModel.setFiltroDataRealizadas(null)
+                        Screen.Pagas.route -> viewModel.setFiltroDataPagas(null)
+                    }
+                    showGlobalDatePicker = false
+                }) { Text("Limpar Filtro") }
+            }
+        )
     }
 }
 
 @Composable
-fun MainScreen(
-    onPermissionsRequested: () -> Unit,
-    viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)
-) {
-    val mainUiState by viewModel.mainUiState.collectAsState()
-    val filtroData by viewModel.filtroData.collectAsState()
+fun MainScreen(onPermissionsRequested: () -> Unit, viewModel: MainViewModel) {
+    val uiState by viewModel.mainUiState.collectAsState()
+    val filtro by viewModel.filtroData.collectAsState()
     val context = LocalContext.current
-
     var showDeleteDialog by remember { mutableStateOf(false) }
     var entregaToDelete by remember { mutableStateOf<EntregaDisplay?>(null) }
 
     if (showDeleteDialog && entregaToDelete != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Confirmar Exclusão") },
-            text = { Text("Tem certeza de que deseja apagar esta entrega?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteEntrega(entregaToDelete!!.originalEntrega)
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Deletar")
-                }
-            },
-            dismissButton = {
-                Button(onClick = { showDeleteDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
+            title = { Text("Apagar Entrega") },
+            text = { Text("Tem certeza?") },
+            confirmButton = { Button(onClick = { viewModel.deleteEntrega(entregaToDelete!!.originalEntrega); showDeleteDialog = false }) { Text("Sim") } },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Não") } }
         )
     }
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Header(
-            defaultTitle = "Total em Aberto",
-            total = mainUiState.total,
-            filtro = filtroData,
-            onFilterClick = { viewModel.setFiltroData(it) },
-            onClearFilter = { viewModel.limparFiltro() },
-            onBackupClick = { 
-                onPermissionsRequested()
-                viewModel.exportarBackupTotal(context)
-             }
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Body(
-            entregas = mainUiState.entregas,
-            onPagoChange = { viewModel.togglePagoStatus(it.originalEntrega) },
-            onRealizadaChange = { viewModel.toggleRealizadaStatus(it.originalEntrega) },
-            onDeleteClick = {
-                entregaToDelete = it
-                showDeleteDialog = true
-            }
-        )
-    }
-}
-
-@Composable
-fun Body(
-    entregas: List<EntregaDisplay>,
-    onPagoChange: (EntregaDisplay) -> Unit,
-    onRealizadaChange: (EntregaDisplay) -> Unit,
-    onDeleteClick: (EntregaDisplay) -> Unit
-) {
-    if (entregas.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = "Nenhuma entrega encontrada")
-        }
-    } else {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(entregas, key = { it.id }) {
-                EntregaItem(
-                    entrega = it,
-                    onPagoChange = { onPagoChange(it) },
-                    onRealizadaChange = { onRealizadaChange(it) },
-                    onDeleteClick = { onDeleteClick(it) }
-                )
-            }
+        Header(filtro ?: "Total em Aberto", uiState.total, filtro, { viewModel.setFiltroData(it) }, { viewModel.setFiltroData(null) }, { viewModel.exportarBackupTotal(context) }, false)
+        Spacer(modifier = Modifier.height(8.dp))
+        Body(uiState.entregas, { viewModel.togglePagoStatus(it.originalEntrega) }, { viewModel.toggleRealizadaStatus(it.originalEntrega) }) {
+            entregaToDelete = it
+            showDeleteDialog = true
         }
     }
 }
 
 @Composable
-fun EntregaItem(
-    entrega: EntregaDisplay,
-    onPagoChange: () -> Unit,
-    onRealizadaChange: () -> Unit,
-    onDeleteClick: () -> Unit
-) {
+fun Body(entregas: List<EntregaDisplay>, onPago: (EntregaDisplay) -> Unit, onRealizada: (EntregaDisplay) -> Unit, onDelete: (EntregaDisplay) -> Unit) {
+    if (entregas.isEmpty()) Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Vazio") }
+    else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(entregas, key = { it.id }) { EntregaItem(it, onPago, onRealizada, onDelete) }
+    }
+}
+
+@Composable
+fun EntregaItem(item: EntregaDisplay, onPago: (EntregaDisplay) -> Unit, onRealizada: (EntregaDisplay) -> Unit, onDelete: (EntregaDisplay) -> Unit) {
     var showPagoDialog by remember { mutableStateOf(false) }
-    var showRealizadaDialog by remember { mutableStateOf(false) }
+    var showRealDialog by remember { mutableStateOf(false) }
 
-    if (showPagoDialog) {
-        AlertDialog(
-            onDismissRequest = { showPagoDialog = false },
-            title = { Text("Confirmar Pagamento") },
-            text = { Text("Deseja alterar o status de pagamento desta entrega?") },
-            confirmButton = {
-                TextButton(onClick = { onPagoChange(); showPagoDialog = false }) { Text("Sim") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPagoDialog = false }) { Text("Cancelar") }
-            }
-        )
-    }
-
-    if (showRealizadaDialog) {
-        AlertDialog(
-            onDismissRequest = { showRealizadaDialog = false },
-            title = { Text("Confirmar Realização") },
-            text = { Text("Deseja alterar o status de realização desta entrega?") },
-            confirmButton = {
-                TextButton(onClick = { onRealizadaChange(); showRealizadaDialog = false }) { Text("Sim") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRealizadaDialog = false }) { Text("Cancelar") }
-            }
-        )
-    }
+    if (showPagoDialog) AlertDialog(onDismissRequest = { showPagoDialog = false }, title = { Text("Pagamento") }, text = { Text("Alterar status?") }, confirmButton = { Button(onClick = { onPago(item); showPagoDialog = false }) { Text("Sim") } }, dismissButton = { TextButton(onClick = { showPagoDialog = false }) { Text("Não") } })
+    if (showRealDialog) AlertDialog(onDismissRequest = { showRealDialog = false }, title = { Text("Realização") }, text = { Text("Alterar status?") }, confirmButton = { Button(onClick = { onRealizada(item); showRealDialog = false }) { Text("Sim") } }, dismissButton = { TextButton(onClick = { showRealDialog = false }) { Text("Não") } })
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.pago, onCheckedChange = { showPagoDialog = true })
-                    Text("Paga", fontSize = 12.sp)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.realizada, onCheckedChange = { showRealizadaDialog = true })
-                    Text("Realizada", fontSize = 12.sp)
-                }
+                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(item.pago, { showPagoDialog = true }); Text("Paga", fontSize = 12.sp) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(item.realizada, { showRealDialog = true }); Text("Realizada", fontSize = 12.sp) }
             }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = entrega.clienteNome, fontWeight = FontWeight.Bold)
-                Text(text = "${entrega.bairroNome} - ${entrega.cidade}", fontSize = 14.sp)
-                Text(text = "Data: ${entrega.data}", fontSize = 14.sp)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(item.clienteNome, fontWeight = FontWeight.Bold)
+                Text("${item.bairroNome} - ${item.cidade}", fontSize = 14.sp)
+                Text(item.data, fontSize = 14.sp)
             }
             Column(horizontalAlignment = Alignment.End) {
-                IconButton(onClick = onDeleteClick) {
-                    Icon(Icons.Default.Delete, contentDescription = "Deletar Entrega")
-                }
-                Text("R$ ${String.format("%.2f", entrega.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.Delete, null) }
+                Text("R$ ${String.format("%.2f", item.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
