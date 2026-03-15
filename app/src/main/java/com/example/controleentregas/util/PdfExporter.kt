@@ -13,6 +13,8 @@ import com.example.controleentregas.ui.ClienteResumo
 import com.example.controleentregas.ui.EntregaDisplay
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.*
 
 object PdfExporter {
 
@@ -66,11 +68,11 @@ object PdfExporter {
         savePdf(context, document, nomeArquivo)
     }
     
-    fun exportarResumoCliente(context: Context, clienteNome: String, resumo: ClienteResumo, nomeArquivo: String) {
+    fun exportarResumoCliente(context: Context, clienteNome: String, resumo: ClienteResumo, entregas: List<EntregaDisplay>, nomeArquivo: String) {
         val document = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 size
-        val page = document.startPage(pageInfo)
-        val canvas = page.canvas
+        var page = document.startPage(pageInfo)
+        var canvas = page.canvas
         val paint = Paint()
         var y = 40f
 
@@ -101,7 +103,23 @@ object PdfExporter {
         canvas.drawText("Total de entregas não pagas: ${resumo.totalEntregasNaoPagas}", 20f, y, paint)
         y += 25f
         canvas.drawText("Valor total a pagar: R$ ${String.format("%.2f", resumo.valorTotalNaoPago)}", 20f, y, paint)
-        y += 25f
+        y += 40f
+
+        // Details
+        paint.textSize = 12f
+        paint.isFakeBoldText = false
+        entregas.forEach { entrega ->
+            if (y > 800) { // Page break
+                document.finishPage(page)
+                page = document.startPage(pageInfo)
+                canvas = page.canvas
+                y = 40f
+            }
+            val statusPago = if (entrega.pago) "Paga" else "Não Paga"
+            val text = "${entrega.data} - ${entrega.cidade} - ${entrega.bairroNome} - R$ ${String.format("%.2f", entrega.valor)} ($statusPago)"
+            canvas.drawText(text, 30f, y, paint)
+            y += 20f
+        }
 
         document.finishPage(page)
         savePdf(context, document, nomeArquivo)
@@ -127,24 +145,60 @@ object PdfExporter {
         canvas.drawText("Cliente: $clienteNome", 20f, y, paint)
         y += 40f
 
-        paint.textSize = 12f
-        paint.isFakeBoldText = false
+        val sdfInput = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val sdfOutput = SimpleDateFormat("EEEE", Locale("pt", "BR"))
 
-        entregas.forEach { entrega ->
-            val text = "${entrega.cidade} - ${entrega.bairroNome} - R$ ${String.format("%.2f", entrega.valor)}"
-            canvas.drawText(text, 20f, y, paint)
-            y += 20f
-            if (y > 800) { // Page break
+        // Agrupar por dia da semana
+        val entregasAgrupadasPorDia = entregas.groupBy { display ->
+            try {
+                val date = sdfInput.parse(display.data)
+                sdfOutput.format(date!!).replaceFirstChar { it.uppercase() }
+            } catch (e: Exception) {
+                "Data Indefinida"
+            }
+        }
+
+        entregasAgrupadasPorDia.forEach { (diaSemana, listaEntregas) ->
+            if (y > 750) { // Quebra de página preventiva para cabeçalho de grupo
                 document.finishPage(page)
                 page = document.startPage(pageInfo)
                 canvas = page.canvas
                 y = 40f
             }
+
+            paint.textSize = 14f
+            paint.isFakeBoldText = true
+            y += 10f
+            canvas.drawText(diaSemana, 20f, y, paint)
+            y += 20f
+
+            paint.textSize = 12f
+            paint.isFakeBoldText = false
+
+            listaEntregas.forEach { entrega ->
+                if (y > 800) { // Page break
+                    document.finishPage(page)
+                    page = document.startPage(pageInfo)
+                    canvas = page.canvas
+                    y = 40f
+                }
+                val text = "${entrega.data} - ${entrega.cidade} - ${entrega.bairroNome} - R$ ${String.format("%.2f", entrega.valor)}"
+                canvas.drawText(text, 35f, y, paint)
+                y += 20f
+            }
+            y += 10f // Espaço entre grupos
         }
 
         val total = entregas.sumOf { it.valor }
+        paint.textSize = 14f
         paint.isFakeBoldText = true
         y += 20f
+        if (y > 800) {
+            document.finishPage(page)
+            page = document.startPage(pageInfo)
+            canvas = page.canvas
+            y = 40f
+        }
         canvas.drawText("Total a pagar: R$ ${String.format("%.2f", total)}", 20f, y, paint)
 
         document.finishPage(page)

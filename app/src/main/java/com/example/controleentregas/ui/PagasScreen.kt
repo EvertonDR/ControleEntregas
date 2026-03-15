@@ -83,14 +83,14 @@ fun PagasScreen(
                 }
             }
         }
-    ) {
-        Column(modifier = Modifier.padding(it).padding(16.dp)) {
+    ) { paddingValues ->
+        Column(modifier = Modifier.padding(paddingValues).padding(16.dp)) {
             Header(
                 defaultTitle = "Total Recebido",
                 total = pagasUiState.totalPago,
                 filtro = filtroData,
-                onFilterClick = viewModel::setFiltroDataPagas,
-                onClearFilter = viewModel::limparFiltroPagas,
+                onFilterClick = { viewModel.setFiltroDataPagas(it) },
+                onClearFilter = { viewModel.limparFiltroPagas() },
                 onBackupClick = null
             )
             Spacer(modifier = Modifier.padding(8.dp))
@@ -208,15 +208,46 @@ fun EntregaPagaItem(
     onPagoChange: () -> Unit,
     onRealizadaChange: () -> Unit
 ) {
+    var showPagoDialog by remember { mutableStateOf(false) }
+    var showRealizadaDialog by remember { mutableStateOf(false) }
+
+    if (showPagoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPagoDialog = false },
+            title = { Text("Confirmar Pagamento") },
+            text = { Text("Deseja alterar o status de pagamento desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onPagoChange(); showPagoDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPagoDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showRealizadaDialog) {
+        AlertDialog(
+            onDismissRequest = { showRealizadaDialog = false },
+            title = { Text("Confirmar Realização") },
+            text = { Text("Deseja alterar o status de realização desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onRealizadaChange(); showRealizadaDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRealizadaDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.pago, onCheckedChange = { onPagoChange() })
+                    Checkbox(checked = entrega.pago, onCheckedChange = { showPagoDialog = true })
                     Text("Paga", fontSize = 12.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.realizada, onCheckedChange = { onRealizadaChange() })
+                    Checkbox(checked = entrega.realizada, onCheckedChange = { showRealizadaDialog = true })
                     Text("Realizada", fontSize = 12.sp)
                 }
             }

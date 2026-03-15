@@ -33,6 +33,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.controleentregas.ui.*
 import com.example.controleentregas.ui.theme.ControleEntregasTheme
+import java.util.Calendar
+import java.util.Date
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     object EmAberto : Screen("em_aberto", "Em Aberto", Icons.Default.List)
@@ -220,8 +222,8 @@ fun MainScreen(
             defaultTitle = "Total em Aberto",
             total = mainUiState.total,
             filtro = filtroData,
-            onFilterClick = viewModel::setFiltroData,
-            onClearFilter = viewModel::limparFiltro,
+            onFilterClick = { viewModel.setFiltroData(it) },
+            onClearFilter = { viewModel.limparFiltro() },
             onBackupClick = { 
                 onPermissionsRequested()
                 viewModel.exportarBackupTotal(context)
@@ -230,8 +232,8 @@ fun MainScreen(
         Spacer(modifier = Modifier.height(16.dp))
         Body(
             entregas = mainUiState.entregas,
-            onPagoChange = { entrega -> viewModel.togglePagoStatus(entrega.originalEntrega) },
-            onRealizadaChange = { entrega -> viewModel.toggleRealizadaStatus(entrega.originalEntrega) },
+            onPagoChange = { viewModel.togglePagoStatus(it.originalEntrega) },
+            onRealizadaChange = { viewModel.toggleRealizadaStatus(it.originalEntrega) },
             onDeleteClick = {
                 entregaToDelete = it
                 showDeleteDialog = true
@@ -272,15 +274,46 @@ fun EntregaItem(
     onRealizadaChange: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    var showPagoDialog by remember { mutableStateOf(false) }
+    var showRealizadaDialog by remember { mutableStateOf(false) }
+
+    if (showPagoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPagoDialog = false },
+            title = { Text("Confirmar Pagamento") },
+            text = { Text("Deseja alterar o status de pagamento desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onPagoChange(); showPagoDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPagoDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showRealizadaDialog) {
+        AlertDialog(
+            onDismissRequest = { showRealizadaDialog = false },
+            title = { Text("Confirmar Realização") },
+            text = { Text("Deseja alterar o status de realização desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onRealizadaChange(); showRealizadaDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRealizadaDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.pago, onCheckedChange = { onPagoChange() })
+                    Checkbox(checked = entrega.pago, onCheckedChange = { showPagoDialog = true })
                     Text("Paga", fontSize = 12.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.realizada, onCheckedChange = { onRealizadaChange() })
+                    Checkbox(checked = entrega.realizada, onCheckedChange = { showRealizadaDialog = true })
                     Text("Realizada", fontSize = 12.sp)
                 }
             }
@@ -294,7 +327,7 @@ fun EntregaItem(
                 IconButton(onClick = onDeleteClick) {
                     Icon(Icons.Default.Delete, contentDescription = "Deletar Entrega")
                 }
-                Text(text = "R$ ${String.format("%.2f", entrega.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Text("R$ ${String.format("%.2f", entrega.valor)}", fontSize = 18.sp, fontWeight = FontWeight.Medium)
             }
         }
     }

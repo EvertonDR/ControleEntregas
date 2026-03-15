@@ -28,7 +28,8 @@ fun Header(
     filtro: String?,
     onFilterClick: (Date) -> Unit,
     onClearFilter: () -> Unit,
-    onBackupClick: (() -> Unit)? = null
+    onBackupClick: (() -> Unit)? = null,
+    showFilterActions: Boolean = true // Nova opção para mostrar/esconder filtros no topo
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -41,17 +42,19 @@ fun Header(
             Text(text = filtro ?: defaultTitle, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(text = "R$ ${String.format("%.2f", total)}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (onBackupClick != null) {
-                IconButton(onClick = onBackupClick) {
-                    Icon(Icons.Default.Download, contentDescription = "Baixar Backup Total")
+        if (showFilterActions) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (onBackupClick != null) {
+                    IconButton(onClick = onBackupClick) {
+                        Icon(Icons.Default.Download, contentDescription = "Baixar Backup Total")
+                    }
                 }
-            }
-            IconButton(onClick = { showDatePicker = true }) {
-                Icon(Icons.Default.CalendarToday, contentDescription = "Filtrar por data")
-            }
-            IconButton(onClick = onClearFilter, enabled = filtro != null) {
-                Icon(Icons.Default.Clear, contentDescription = "Limpar filtro")
+                IconButton(onClick = { showDatePicker = true }) {
+                    Icon(Icons.Default.CalendarToday, contentDescription = "Filtrar por data")
+                }
+                IconButton(onClick = onClearFilter, enabled = filtro != null) {
+                    Icon(Icons.Default.Clear, contentDescription = "Limpar filtro")
+                }
             }
         }
     }

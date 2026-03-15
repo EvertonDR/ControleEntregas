@@ -15,12 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -119,15 +114,46 @@ fun EntregaNaoPagaItem(
     onPagoChange: () -> Unit,
     onRealizadaChange: () -> Unit
 ) {
+    var showPagoDialog by remember { mutableStateOf(false) }
+    var showRealizadaDialog by remember { mutableStateOf(false) }
+
+    if (showPagoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPagoDialog = false },
+            title = { Text("Confirmar Pagamento") },
+            text = { Text("Deseja alterar o status de pagamento desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onPagoChange(); showPagoDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPagoDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showRealizadaDialog) {
+        AlertDialog(
+            onDismissRequest = { showRealizadaDialog = false },
+            title = { Text("Confirmar Realização") },
+            text = { Text("Deseja alterar o status de realização desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onRealizadaChange(); showRealizadaDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRealizadaDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.pago, onCheckedChange = { onPagoChange() })
+                    Checkbox(checked = entrega.pago, onCheckedChange = { showPagoDialog = true })
                     Text("Paga", fontSize = 12.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.realizada, onCheckedChange = { onRealizadaChange() })
+                    Checkbox(checked = entrega.realizada, onCheckedChange = { showRealizadaDialog = true })
                     Text("Realizada", fontSize = 12.sp)
                 }
             }

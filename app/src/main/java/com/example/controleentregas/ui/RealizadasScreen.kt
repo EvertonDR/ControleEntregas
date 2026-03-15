@@ -1,26 +1,11 @@
 package com.example.controleentregas.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,36 +14,90 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.util.Calendar
 
 @Composable
 fun RealizadasScreen(
     viewModel: MainViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
     val realizadasUiState by viewModel.realizadasUiState.collectAsState()
+    val filtroData by viewModel.filtroDataRealizadas.collectAsState()
     val context = LocalContext.current
+    var showDatePicker by remember { mutableStateOf(false) }
 
-    if (realizadasUiState.entregasPorCliente.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = "Nenhuma entrega realizada encontrada")
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            realizadasUiState.entregasPorCliente.forEach { (clienteNome, entregas) ->
-                item {
-                    ClienteRealizadasSection(
-                        clienteNome = clienteNome,
-                        entregas = entregas,
-                        onDownloadClick = {
-                            viewModel.exportarResumoCliente(context, clienteNome)
-                        },
-                        viewModel = viewModel
-                    )
+    Scaffold(
+        floatingActionButton = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 32.dp), // Compensar padding do Scaffold
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (filtroData != null) {
+                        SmallFloatingActionButton(
+                            onClick = { viewModel.limparFiltroRealizadas() },
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(Icons.Default.Clear, "Limpar Filtro")
+                        }
+                    }
+                    FloatingActionButton(
+                        onClick = { showDatePicker = true },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Icon(Icons.Default.CalendarToday, "Filtrar por data")
+                    }
                 }
             }
         }
+    ) { paddingValues ->
+        Column(modifier = Modifier.padding(paddingValues).padding(16.dp)) {
+            Header(
+                defaultTitle = "Total Realizadas",
+                total = realizadasUiState.totalRealizadas,
+                filtro = filtroData,
+                onFilterClick = { viewModel.setFiltroDataRealizadas(it) },
+                onClearFilter = { viewModel.limparFiltroRealizadas() },
+                showFilterActions = false // Esconde os filtros do topo
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (realizadasUiState.entregasPorCliente.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(text = "Nenhuma entrega realizada encontrada")
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    realizadasUiState.entregasPorCliente.forEach { (clienteNome, entregas) ->
+                        item {
+                            ClienteRealizadasSection(
+                                clienteNome = clienteNome,
+                                entregas = entregas,
+                                onDownloadClick = {
+                                    viewModel.exportarResumoCliente(context, clienteNome)
+                                },
+                                viewModel = viewModel
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        val calendar = Calendar.getInstance()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            onDateSet = { year, month, day ->
+                calendar.set(year, month, day)
+                viewModel.setFiltroDataRealizadas(calendar.time)
+                showDatePicker = false
+            },
+            initialDate = calendar
+        )
     }
 }
 
@@ -154,15 +193,46 @@ fun EntregaRealizadaItem(
     onPagoChange: () -> Unit,
     onRealizadaChange: () -> Unit
 ) {
+    var showPagoDialog by remember { mutableStateOf(false) }
+    var showRealizadaDialog by remember { mutableStateOf(false) }
+
+    if (showPagoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPagoDialog = false },
+            title = { Text("Confirmar Pagamento") },
+            text = { Text("Deseja alterar o status de pagamento desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onPagoChange(); showPagoDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPagoDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showRealizadaDialog) {
+        AlertDialog(
+            onDismissRequest = { showRealizadaDialog = false },
+            title = { Text("Confirmar Realização") },
+            text = { Text("Deseja alterar o status de realização desta entrega?") },
+            confirmButton = {
+                TextButton(onClick = { onRealizadaChange(); showRealizadaDialog = false }) { Text("Sim") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRealizadaDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.pago, onCheckedChange = { onPagoChange() })
+                    Checkbox(checked = entrega.pago, onCheckedChange = { showPagoDialog = true })
                     Text("Paga", fontSize = 12.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = entrega.realizada, onCheckedChange = { onRealizadaChange() })
+                    Checkbox(checked = entrega.realizada, onCheckedChange = { showRealizadaDialog = true })
                     Text("Realizada", fontSize = 12.sp)
                 }
             }
