@@ -44,8 +44,8 @@ fun PagasScreen(
     if (showAddCustoDialog) {
         AddCustoDialog(
             onDismissRequest = { showAddCustoDialog = false },
-            onConfirm = {
-                viewModel.inserirCusto(it.nome, it.valor)
+            onConfirm = { novoCusto -> // PARÂMETRO EXPLÍCITO AQUI
+                viewModel.inserirCusto(novoCusto.nome, novoCusto.valor)
                 showAddCustoDialog = false
             }
         )
@@ -90,8 +90,9 @@ fun PagasScreen(
                 total = pagasUiState.totalPago,
                 filtro = filtroData,
                 onFilterClick = { viewModel.setFiltroDataPagas(it) },
-                onClearFilter = { viewModel.limparFiltroPagas() },
-                onBackupClick = null
+                onClearFilter = { viewModel.setFiltroDataPagas(null) },
+                onBackupClick = null,
+                showFilterActions = false
             )
             Spacer(modifier = Modifier.padding(8.dp))
 

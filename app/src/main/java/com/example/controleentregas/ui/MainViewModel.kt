@@ -21,173 +21,103 @@ import java.util.Locale
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(private val entregasRepository: EntregasRepository) : ViewModel() {
 
-    // Filtros de Data para cada aba
+    // Filtros (StateFlow simples para disparar atualizações)
     private val _filtroData = MutableStateFlow<String?>(null)
-    val filtroData: StateFlow<String?> = _filtroData.asStateFlow()
+    val filtroData = _filtroData.asStateFlow()
 
     private val _filtroDataPagas = MutableStateFlow<String?>(null)
-    val filtroDataPagas: StateFlow<String?> = _filtroDataPagas.asStateFlow()
+    val filtroDataPagas = _filtroDataPagas.asStateFlow()
 
     private val _filtroDataRealizadas = MutableStateFlow<String?>(null)
-    val filtroDataRealizadas: StateFlow<String?> = _filtroDataRealizadas.asStateFlow()
+    val filtroDataRealizadas = _filtroDataRealizadas.asStateFlow()
 
-    // Auxiliar para formatar entregas com nomes de clientes e bairros
-    private fun getEntregasDisplayFlow(entregasFlow: Flow<List<EntregaEntity>>): Flow<List<EntregaDisplay>> {
-        return combine(
-            entregasFlow,
-            entregasRepository.getClientes(),
-            entregasRepository.getBairros()
-        ) { entregas, clientes, bairros ->
-            val clientesMap = clientes.associateBy { it.id }
-            val bairrosMap = bairros.associateBy { it.id }
-            entregas.map { entrega ->
-                EntregaDisplay(
-                    id = entrega.id,
-                    clienteNome = clientesMap[entrega.clienteId]?.nome ?: "Desconhecido",
-                    bairroNome = bairrosMap[entrega.bairroId]?.nome ?: "Desconhecido",
-                    cidade = entrega.cidade,
-                    valor = entrega.valor,
-                    data = entrega.data,
-                    pago = entrega.pago,
-                    realizada = entrega.realizada,
-                    originalEntrega = entrega
-                )
-            }
+    // Fluxos de Clientes e Bairros (sempre atualizados)
+    val clientes = entregasRepository.getClientes().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val bairros = entregasRepository.getBairros().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ABA: EM ABERTO
+    val mainUiState: StateFlow<MainUiState> = _filtroData.flatMapLatest { data ->
+        val entregas = if (data == null) entregasRepository.getEntregasEmAberto() else entregasRepository.getEntregasEmAbertoPorData(data)
+        val total = if (data == null) entregasRepository.getTotalEmAberto() else entregasRepository.getTotalEmAbertoPorData(data)
+        combine(entregas, total, clientes, bairros) { e, t, c, b ->
+            MainUiState(transform(e, c, b), t ?: 0.0)
         }
-    }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
 
-    // Estado da aba "Em Aberto"
-    val mainUiState: StateFlow<MainUiState> = 
-        _filtroData.flatMapLatest { data ->
-            val flow = if (data == null) entregasRepository.getEntregasEmAberto() else entregasRepository.getEntregasEmAbertoPorData(data)
-            val totalFlow = if (data == null) entregasRepository.getTotalEmAberto() else entregasRepository.getTotalEmAbertoPorData(data)
-            
-            combine(getEntregasDisplayFlow(flow), totalFlow) { list, total ->
-                MainUiState(entregas = list, total = total ?: 0.0)
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), MainUiState())
+    // ABA: PAGAS
+    val pagasUiState: StateFlow<PagasUiState> = _filtroDataPagas.flatMapLatest { data ->
+        val entregas = if (data == null) entregasRepository.getEntregasPagas() else entregasRepository.getEntregasPagasPorData(data)
+        val total = if (data == null) entregasRepository.getTotalPago() else entregasRepository.getTotalPagoPorData(data)
+        combine(entregas, total, clientes, bairros) { e, t, c, b ->
+            PagasUiState(transform(e, c, b).groupBy { it.clienteNome }, t ?: 0.0)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PagasUiState())
 
-    // Estado da aba "Pagas"
-    val pagasUiState: StateFlow<PagasUiState> = 
-        _filtroDataPagas.flatMapLatest { data ->
-            val flow = if (data == null) entregasRepository.getEntregasPagas() else entregasRepository.getEntregasPagasPorData(data)
-            val totalFlow = if (data == null) entregasRepository.getTotalPago() else entregasRepository.getTotalPagoPorData(data)
-            
-            combine(getEntregasDisplayFlow(flow), totalFlow) { list, total ->
-                PagasUiState(entregasPagasPorCliente = list.groupBy { it.clienteNome }, totalPago = total ?: 0.0)
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PagasUiState())
-    
-    // Estado da aba "Não Pagas"
-    val naoPagasUiState: StateFlow<NaoPagasUiState> = 
-        combine(
-            getEntregasDisplayFlow(entregasRepository.getEntregasNaoPagas()),
-            entregasRepository.getTotalNaoPago()
-        ) { list, total ->
+    // ABA: REALIZADAS
+    val realizadasUiState: StateFlow<RealizadasUiState> = _filtroDataRealizadas.flatMapLatest { data ->
+        val entregas = if (data == null) entregasRepository.getEntregasRealizadas() else entregasRepository.getEntregasRealizadasPorData(data)
+        val total = if (data == null) entregasRepository.getTotalRealizadas() else entregasRepository.getTotalRealizadasPorData(data)
+        combine(entregas, total, clientes, bairros) { e, t, c, b ->
+            val list = transform(e, c, b)
             val agrupadas = list.groupBy { it.clienteNome }
-            NaoPagasUiState(
-                entregasNaoPagasPorCliente = agrupadas,
-                subtotalPorCliente = agrupadas.mapValues { it.value.sumOf { e -> e.valor } },
-                totalNaoPago = total ?: 0.0
-            )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), NaoPagasUiState())
-
-    // Estado da aba "Realizadas"
-    val realizadasUiState: StateFlow<RealizadasUiState> = 
-        _filtroDataRealizadas.flatMapLatest { data ->
-            val flow = if (data == null) entregasRepository.getEntregasRealizadas() else entregasRepository.getEntregasRealizadasPorData(data)
-            val totalFlow = if (data == null) entregasRepository.getTotalRealizadas() else entregasRepository.getTotalRealizadasPorData(data)
-            
-            combine(getEntregasDisplayFlow(flow), totalFlow) { list, total ->
-                val agrupadas = list.groupBy { it.clienteNome }
-                val resumos = agrupadas.mapValues { (_, subList) ->
-                    val pagas = subList.filter { it.pago }
-                    val naoPagas = subList.filter { !it.pago }
-                    ClienteResumo(
-                        totalEntregasRealizadas = subList.size,
-                        totalEntregasPagas = pagas.size,
-                        totalEntregasNaoPagas = naoPagas.size,
-                        valorTotalPago = pagas.sumOf { it.valor },
-                        valorTotalNaoPago = naoPagas.sumOf { it.valor }
-                    )
-                }
-                RealizadasUiState(agrupadas, resumos, total ?: 0.0)
+            val resumos = agrupadas.mapValues { (_, sub) ->
+                val p = sub.filter { it.pago }
+                val np = sub.filter { !it.pago }
+                ClienteResumo(sub.size, p.size, np.size, p.sumOf { it.valor }, np.sumOf { it.valor })
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), RealizadasUiState())
+            RealizadasUiState(agrupadas, resumos, t ?: 0.0)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), RealizadasUiState())
 
-    // Estado do "Caixa"
-    val caixaUiState: StateFlow<CaixaUiState> = 
-        combine(
-            entregasRepository.getTotalPago(),
-            entregasRepository.getTotalCustos(),
-            entregasRepository.getCustos()
-        ) { totalPago, totalCustos, custos ->
-            val entradas = totalPago ?: 0.0
-            val saidas = totalCustos ?: 0.0
-            CaixaUiState(entradas - saidas, entradas, saidas, custos)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CaixaUiState())
+    // ABA: NÃO PAGAS (Sem filtro de data conforme pedido)
+    val naoPagasUiState: StateFlow<NaoPagasUiState> = combine(entregasRepository.getEntregasNaoPagas(), entregasRepository.getTotalNaoPago(), clientes, bairros) { e, t, c, b ->
+        val list = transform(e, c, b)
+        val agrupadas = list.groupBy { it.clienteNome }
+        NaoPagasUiState(agrupadas, agrupadas.mapValues { it.value.sumOf { ent -> ent.valor } }, t ?: 0.0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), NaoPagasUiState())
 
-    val clientes: StateFlow<List<ClienteEntity>> = entregasRepository.getClientes()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // CAIXA
+    val caixaUiState: StateFlow<CaixaUiState> = combine(entregasRepository.getTotalPago(), entregasRepository.getTotalCustos(), entregasRepository.getCustos()) { t, tc, c ->
+        CaixaUiState((t ?: 0.0) - (tc ?: 0.0), t ?: 0.0, tc ?: 0.0, c)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CaixaUiState())
 
-    val bairros: StateFlow<List<BairroEntity>> = entregasRepository.getBairros()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // Funções de Status e Ações
-    fun togglePagoStatus(entrega: EntregaEntity) = viewModelScope.launch { entregasRepository.updateEntrega(entrega.copy(pago = !entrega.pago)) }
-    fun toggleRealizadaStatus(entrega: EntregaEntity) = viewModelScope.launch { entregasRepository.updateEntrega(entrega.copy(realizada = !entrega.realizada)) }
-    fun deleteEntrega(entrega: EntregaEntity) = viewModelScope.launch { entregasRepository.deleteEntrega(entrega) }
-    fun inserirCusto(nome: String, valor: Double) = viewModelScope.launch { entregasRepository.insertCusto(CustoEntity(nome = nome, valor = valor)) }
-    fun deleteCusto(custo: CustoEntity) = viewModelScope.launch { entregasRepository.deleteCusto(custo) }
-
-    // Funções de Controle de Filtros
-    fun setFiltroData(date: Date?) { _filtroData.value = date?.toFormattedString() }
-    fun limparFiltro() { _filtroData.value = null }
+    // Funções de Filtro
+    fun setFiltroData(date: Date?) { _filtroData.value = date?.format() }
+    fun setFiltroDataPagas(date: Date?) { _filtroDataPagas.value = date?.format() }
+    fun setFiltroDataRealizadas(date: Date?) { _filtroDataRealizadas.value = date?.format() }
     
-    fun setFiltroDataPagas(date: Date?) { _filtroDataPagas.value = date?.toFormattedString() }
-    fun limparFiltroPagas() { _filtroDataPagas.value = null }
+    private fun Date.format() = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(this)
 
-    fun setFiltroDataRealizadas(date: Date?) { _filtroDataRealizadas.value = date?.toFormattedString() }
-    fun limparFiltroRealizadas() { _filtroDataRealizadas.value = null }
-
-    private fun Date.toFormattedString(): String = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(this)
-
-    // Exportações
-    fun exportarBackupTotal(context: Context) = viewModelScope.launch {
-        val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-        val nomeArquivo = "ERDelivery_Backup_${sdf.format(Date())}"
-        
-        val todasEntregas = entregasRepository.getTodasAsEntregas().first()
-        val displayEntregas = getEntregasDisplayFlow(flowOf(todasEntregas)).first()
-        
-        PdfExporter.exportarBackupTotal(context, displayEntregas, nomeArquivo)
-        JsonExporter.export(context, BackupData(entregasRepository.getClientes().first(), entregasRepository.getBairros().first(), todasEntregas), nomeArquivo)
-    }
-
-    fun exportarResumoCliente(context: Context, clienteNome: String) = viewModelScope.launch {
-        val state = realizadasUiState.value
-        val resumo = state.resumoPorCliente[clienteNome]
-        val entregas = state.entregasPorCliente[clienteNome]
-
-        if (resumo != null && entregas != null) {
-            val nomeArquivo = "Resumo_${clienteNome.replace(" ", "_")}_${SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())}"
-            PdfExporter.exportarResumoCliente(context, clienteNome, resumo, entregas, nomeArquivo)
-        }
-    }
-
-    fun exportarNaoPagasCliente(context: Context, clienteNome: String) = viewModelScope.launch {
-        naoPagasUiState.value.entregasNaoPagasPorCliente[clienteNome]?.let { entregas ->
-            val nomeArquivo = "Cobranca_${clienteNome.replace(" ", "_")}_${SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(Date())}"
-            PdfExporter.exportarNaoPagasCliente(context, clienteNome, entregas, nomeArquivo)
-        }
-    }
-
-    // Inserções
-    fun inserirEntrega(cId: Int, bId: Int, valEnt: Double, dt: String, cid: String) = viewModelScope.launch {
-        entregasRepository.insertEntrega(EntregaEntity(clienteId = cId, bairroId = bId, valor = valEnt, data = dt, pago = false, realizada = false, cidade = cid))
-    }
+    // Ações
+    fun togglePagoStatus(e: EntregaEntity) = viewModelScope.launch { entregasRepository.updateEntrega(e.copy(pago = !e.pago)) }
+    fun toggleRealizadaStatus(e: EntregaEntity) = viewModelScope.launch { entregasRepository.updateEntrega(e.copy(realizada = !e.realizada)) }
+    fun deleteEntrega(e: EntregaEntity) = viewModelScope.launch { entregasRepository.deleteEntrega(e) }
+    fun inserirCusto(n: String, v: Double) = viewModelScope.launch { entregasRepository.insertCusto(CustoEntity(nome = n, valor = v)) }
+    fun deleteCusto(c: CustoEntity) = viewModelScope.launch { entregasRepository.deleteCusto(c) }
+    fun inserirEntrega(cId: Int, bId: Int, v: Double, d: String, cid: String) = viewModelScope.launch { entregasRepository.insertEntrega(EntregaEntity(clienteId = cId, bairroId = bId, valor = v, data = d, pago = false, realizada = false, cidade = cid)) }
     fun inserirCliente(n: String) = viewModelScope.launch { entregasRepository.insertCliente(ClienteEntity(nome = n)) }
     fun inserirBairro(n: String, v: Double, c: String) = viewModelScope.launch { entregasRepository.insertBairro(BairroEntity(nome = n, valorEntrega = v, cidade = c)) }
+
+    private fun transform(e: List<EntregaEntity>, c: List<ClienteEntity>, b: List<BairroEntity>): List<EntregaDisplay> {
+        val cMap = c.associateBy { it.id }; val bMap = b.associateBy { it.id }
+        return e.map { EntregaDisplay(it.id, cMap[it.clienteId]?.nome ?: "Desconhecido", bMap[it.bairroId]?.nome ?: "Desconhecido", it.cidade, it.valor, it.data, it.pago, it.realizada, it) }
+    }
+
+    fun exportarBackupTotal(context: Context) = viewModelScope.launch {
+        val todas = entregasRepository.getTodasAsEntregas().first()
+        val nome = "ERDelivery_Backup_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())}"
+        PdfExporter.exportarBackupTotal(context, transform(todas, clientes.value, bairros.value), nome)
+        JsonExporter.export(context, BackupData(clientes.value, bairros.value, todas), nome)
+    }
+
+    fun exportarResumoCliente(context: Context, nome: String) = viewModelScope.launch {
+        val res = realizadasUiState.value.resumoPorCliente[nome]; val ent = realizadasUiState.value.entregasPorCliente[nome]
+        if (res != null && ent != null) PdfExporter.exportarResumoCliente(context, nome, res, ent, "Resumo_${nome.replace(" ", "_")}")
+    }
+
+    fun exportarNaoPagasCliente(context: Context, nome: String) = viewModelScope.launch {
+        naoPagasUiState.value.entregasNaoPagasPorCliente[nome]?.let { PdfExporter.exportarNaoPagasCliente(context, nome, it, "Cobranca_${nome.replace(" ", "_")}") }
+    }
 }
 
 data class MainUiState(val entregas: List<EntregaDisplay> = listOf(), val total: Double = 0.0)
