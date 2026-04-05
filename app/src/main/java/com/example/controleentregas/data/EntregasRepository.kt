@@ -46,7 +46,7 @@ class EntregasRepository(
     suspend fun insertCusto(custo: CustoEntity) = custoDao.inserir(custo)
     suspend fun deleteCusto(custo: CustoEntity) = custoDao.delete(custo)
 
-    // FUNÇÃO DE RESTAURAÇÃO (Garante limpeza e inserção segura)
+    // FUNÇÃO DE RESTAURAÇÃO
     suspend fun restaurarBackup(backup: BackupData) {
         entregaDao.limparTudo()
         bairroDao.limparTudo()
