@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ControleEntregasTheme {
-                MainApp(onPermissionsRequested = { /* Implementação de permissões se necessário */ })
+                MainApp(onPermissionsRequested = { /* Permissões tratadas pelo sistema moderno */ })
             }
         }
     }
@@ -63,17 +64,26 @@ fun MainApp(
     val navController = rememberNavController()
     val bottomNavItems = listOf(Screen.EmAberto, Screen.Realizadas, Screen.NaoPagas, Screen.Pagas)
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val currentDestination = navBackStackEntry?.destination
+    val currentRoute = currentDestination?.route
     
     val showFab = currentRoute == Screen.EmAberto.route
     var isExpanded by remember { mutableStateOf(false) }
     var showGlobalDatePicker by remember { mutableStateOf(false) }
 
+    // Lançador para escolher o arquivo JSON
+    val context = LocalContext.current
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            uri?.let { viewModel.importarBackup(context, it) }
+        }
+    )
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
             NavigationBar {
-                // Primeira metade: Em Aberto e Realizadas
                 bottomNavItems.take(2).forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, null) },
@@ -89,7 +99,6 @@ fun MainApp(
                     )
                 }
 
-                // Botão de Filtro Centralizado
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.DateRange, null) },
                     label = { Text("Filtrar") },
@@ -97,7 +106,6 @@ fun MainApp(
                     onClick = { showGlobalDatePicker = true }
                 )
 
-                // Segunda metade: Não Pagas e Pagas
                 bottomNavItems.takeLast(2).forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, null) },
@@ -130,7 +138,13 @@ fun MainApp(
         }
     ) { innerPadding ->
         NavHost(navController, Screen.EmAberto.route, Modifier.padding(innerPadding)) {
-            composable(Screen.EmAberto.route) { MainScreen(onPermissionsRequested, viewModel) }
+            composable(Screen.EmAberto.route) { 
+                MainScreen(
+                    onBackupClick = { viewModel.exportarBackupTotal(context) },
+                    onImportClick = { importLauncher.launch(arrayOf("application/json")) },
+                    viewModel = viewModel
+                ) 
+            }
             composable(Screen.Realizadas.route) { RealizadasScreen(viewModel) }
             composable(Screen.NaoPagas.route) { NaoPagasScreen(viewModel) }
             composable(Screen.Pagas.route) { PagasScreen(navController, viewModel) }
@@ -149,7 +163,6 @@ fun MainApp(
             confirmButton = {
                 Button(onClick = {
                     showGlobalDatePicker = false
-                    // Abre o seletor de data padrão do sistema
                     val cal = Calendar.getInstance()
                     val dpd = android.app.DatePickerDialog(
                         navController.context,
@@ -181,10 +194,14 @@ fun MainApp(
 }
 
 @Composable
-fun MainScreen(onPermissionsRequested: () -> Unit, viewModel: MainViewModel) {
+fun MainScreen(
+    onBackupClick: () -> Unit,
+    onImportClick: () -> Unit,
+    viewModel: MainViewModel
+) {
     val uiState by viewModel.mainUiState.collectAsState()
     val filtro by viewModel.filtroData.collectAsState()
-    val context = LocalContext.current
+    var showBackupMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var entregaToDelete by remember { mutableStateOf<EntregaDisplay?>(null) }
 
@@ -199,7 +216,42 @@ fun MainScreen(onPermissionsRequested: () -> Unit, viewModel: MainViewModel) {
     }
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Header(filtro ?: "Total em Aberto", uiState.total, filtro, { viewModel.setFiltroData(it) }, { viewModel.setFiltroData(null) }, { viewModel.exportarBackupTotal(context) }, false)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(text = filtro ?: "Total em Aberto", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = "R$ ${String.format("%.2f", uiState.total)}", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            }
+            Box {
+                IconButton(onClick = { showBackupMenu = true }) {
+                    Icon(Icons.Default.Download, contentDescription = "Opções de Backup")
+                }
+                DropdownMenu(
+                    expanded = showBackupMenu,
+                    onDismissRequest = { showBackupMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Salvar Backup") },
+                        onClick = {
+                            onBackupClick()
+                            showBackupMenu = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.Save, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Importar Backup") },
+                        onClick = {
+                            onImportClick()
+                            showBackupMenu = false
+                        },
+                        leadingIcon = { Icon(Icons.Default.Upload, null) }
+                    )
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Body(uiState.entregas, { viewModel.togglePagoStatus(it.originalEntrega) }, { viewModel.toggleRealizadaStatus(it.originalEntrega) }) {
             entregaToDelete = it
