@@ -2,6 +2,7 @@ package com.example.controleentregas.util
 
 import android.content.ContentValues
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -9,14 +10,21 @@ import android.widget.Toast
 import com.example.controleentregas.data.BackupData
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStreamReader
 
 object JsonExporter {
 
+    private val jsonConfig = Json { 
+        prettyPrint = true
+        ignoreUnknownKeys = true // Importante para compatibilidade futura
+    }
+
     fun export(context: Context, backupData: BackupData, nomeArquivo: String) {
         try {
-            val jsonString = Json { prettyPrint = true }.encodeToString(backupData)
+            val jsonString = jsonConfig.encodeToString(backupData)
             
             val fos: FileOutputStream
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -39,6 +47,18 @@ object JsonExporter {
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(context, "Erro ao salvar JSON: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun import(context: Context, uri: Uri): BackupData? {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            val jsonString = reader.use { it.readText() }
+            jsonConfig.decodeFromString<BackupData>(jsonString)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 }

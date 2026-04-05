@@ -3,6 +3,7 @@ package com.example.controleentregas.data
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
@@ -10,14 +11,20 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface EntregaDao {
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun inserir(entrega: EntregaEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun inserirLista(entregas: List<EntregaEntity>)
 
     @Update
     suspend fun update(entrega: EntregaEntity)
 
     @Delete
     suspend fun delete(entrega: EntregaEntity)
+
+    @Query("DELETE FROM entregas")
+    suspend fun limparTudo()
 
     @Query("SELECT * FROM entregas WHERE realizada = 0 ORDER BY data DESC")
     fun listarEmAberto(): Flow<List<EntregaEntity>>
